@@ -11,21 +11,21 @@ def load_data() -> pd.DataFrame:
 
     # Formatting and renaming columns
     df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='%d/%m/%Y %H:%M:%S.%f')
-    new_names = {'[10772] NOJA_AUSNET!BD18850:FREQ' : 'Frequency',
+    new_names = {'[10772] NOJA_AUSNET!BD18850:FREQ' : 'FREQ',
             '[10773] NOJA_AUSNET!BD18850:DFDT' : 'DF/DT',
-            '[10774] NOJA_AUSNET!BD18850:FLAG' : 'GPS_Flag',
-            '[10775] NOJA_AUSNET!BD18850-UA:MAG' : 'VA_Mag',
-            '[10776] NOJA_AUSNET!BD18850-UA:ANG' : 'VA_Ang',
-            '[10777] NOJA_AUSNET!BD18850-UB:MAG' : 'VB_Mag',
-            '[10778] NOJA_AUSNET!BD18850-UB:ANG' : 'VB_Ang',
-            '[10779] NOJA_AUSNET!BD18850-UC:MAG' : 'VC_Mag',
-            '[10780] NOJA_AUSNET!BD18850-UC:ANG' : 'VC_Ang',
-            '[10781] NOJA_AUSNET!BD18850-UR:MAG' : 'VR_Mag',
-            '[10782] NOJA_AUSNET!BD18850-UR:ANG' : 'VR_Ang',
-            '[10783] NOJA_AUSNET!BD18850-US:MAG' : 'VS_Mag',
-            '[10784] NOJA_AUSNET!BD18850-US:ANG' : 'VS_Ang',
-            '[10785] NOJA_AUSNET!BD18850-UT:MAG' : 'VT_Mag',
-            '[10786] NOJA_AUSNET!BD18850-UT:ANG' : 'VT_Ang',
+            '[10774] NOJA_AUSNET!BD18850:FLAG' : 'GPS',
+            '[10775] NOJA_AUSNET!BD18850-UA:MAG' : 'UA_Mag',
+            '[10776] NOJA_AUSNET!BD18850-UA:ANG' : 'UA_Ang',
+            '[10777] NOJA_AUSNET!BD18850-UB:MAG' : 'UB_Mag',
+            '[10778] NOJA_AUSNET!BD18850-UB:ANG' : 'UB_Ang',
+            '[10779] NOJA_AUSNET!BD18850-UC:MAG' : 'UC_Mag',
+            '[10780] NOJA_AUSNET!BD18850-UC:ANG' : 'UC_Ang',
+            '[10781] NOJA_AUSNET!BD18850-UR:MAG' : 'UR_Mag',
+            '[10782] NOJA_AUSNET!BD18850-UR:ANG' : 'UR_Ang',
+            '[10783] NOJA_AUSNET!BD18850-US:MAG' : 'US_Mag',
+            '[10784] NOJA_AUSNET!BD18850-US:ANG' : 'US_Ang',
+            '[10785] NOJA_AUSNET!BD18850-UT:MAG' : 'UT_Mag',
+            '[10786] NOJA_AUSNET!BD18850-UT:ANG' : 'UT_Ang',
             '[10787] NOJA_AUSNET!BD18850-IA:MAG' : 'IA_Mag',
             '[10788] NOJA_AUSNET!BD18850-IA:ANG' : 'IA_Ang',
             '[10790] NOJA_AUSNET!BD18850-IB:MAG' : 'IB_Mag',
@@ -37,7 +37,6 @@ def load_data() -> pd.DataFrame:
             }
 
     df.rename(columns=new_names, inplace=True)
-
 
     df.set_index('Timestamp', inplace=True)
     df.drop(columns=['[10754] NOJA_AUSNET!BD18850:ALOG1', '[10755] NOJA_AUSNET!BD18850:ALOG2'], inplace=True)
