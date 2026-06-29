@@ -36,9 +36,9 @@ def load_data() -> pd.DataFrame:
             '[10795] NOJA_AUSNET!BD18850-IN:ANG' : 'IN_Ang'
             }
 
-    df.rename(columns=new_names, inplace=True)
+    df = df.rename(columns=new_names)
 
-    df.set_index('Timestamp', inplace=True)
-    df.drop(columns=['[10754] NOJA_AUSNET!BD18850:ALOG1', '[10755] NOJA_AUSNET!BD18850:ALOG2'], inplace=True)
+    df = df.set_index('Timestamp').sort_index()
+    df = df.drop(columns=['[10754] NOJA_AUSNET!BD18850:ALOG1', '[10755] NOJA_AUSNET!BD18850:ALOG2'])
 
     return df
