@@ -1,3 +1,4 @@
+from turtle import end_poly
 import pandas as pd
 import numpy as np
 
@@ -33,10 +34,9 @@ MAX_FLAG = 1000
 def process_data(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> tuple[pd.DataFrame, pd.Series]:
     """
     Processes a single data frame
-      1. Remove duplicates (keep best fit)
-      2. Reindex to uniform 20ms grid
-      3. Linear interpolate gaps ≤ max_gap samples; flag larger gaps (GPS)
-      4. Drop boundary NaNs
+      1. Find missing values -> Check if duplicates around it and uses those or interpolates
+      2. Linear interpolate gaps ≤ max_gap samples; flag larger gaps (GPS)
+      3. Runs through all indexs (none should be missing), if duplicates remain, delete
     Currently assumes index problem gaps will never exceed max interpolation gap
     Returns:
      Tuple of updated dataframe and series of booleans showing where data was interpolated
@@ -44,13 +44,45 @@ def process_data(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> tuple[pd.Da
 
     # 1. Remove Duplicates
 
-def find_gaps(df : pd.DataFrame) -> pd.DataFrame:
+def find_flag_gps(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> pd.DataFrame:
     """
-    Finds (and flags?) gps gaps in the dataframe
+    Identifies contiguous runs of bad gps data.
+    Any run longer than max_gap samples is flagged as NaN across DATA_COLS
+    (too large to safely interpolate — left for dropna() downstream).
+    Runs of length <= max_gap are left untouched so interpolate() can fill them.
+
+    Assumes df has already been reindexed to the uniform timestamp grid,
+    so missing rows show up as NaN rather than absent index entries.
     """
     df = df.copy()
-    df.loc[start:end, DATA_COLS] = np.nan
+    in_bad_gps = False
+    start = None
+    
+    for i, (ts, value) in enumerate(df[FLAG_COL].items()):
+        if value >= MAX_FLAG and not in_bad_gps:
+            start = (i, ts)
+            in_bad_gps = True
+        elif value < MAX_FLAG and in_bad_gps:
+            in_bad_gps = False
+            if i - start[0] >= MAX_INTERP_GAP:
+                _flag_data(df, start[1], ts)
+
+    # Run extends to the last row
+    if in_bad_gps:
+        last_ts = df.index[-1] + pd.Timedelta(f"{SAMPLE_PERIOD_MS}ms")
+        if len(df) - start[0] >= max_gap:
+            _flag_data(df, start[1], last_ts)
+
     return df
+
+
+def _flag_data(df: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> None:
+    """
+    Sets all data from [start, end) to NaN inplace
+    """
+    mask = (df.index >= start) & (df.index < end)
+    df.loc[mask, DATA_COLS] = np.nan
+
 
 
 def interpolate(start : pd.Timestamp, end : pd.Timestamp) -> pd.DataFrame:
@@ -72,9 +104,3 @@ def flag_gaps(df : pd.DataFrame, start : pd.Timestamp, end : pd.Timestamp) -> pd
     df = df.copy()
     df.loc[start:end, DATA_COLS] = np.nan
     return df
-
-def get_best_fit(df : pd.DataFrame, location : pd.Timestamp) -> pd.Dataframe:
-    """
-    Given the dataframe and a timestamp that has duplicates, removes the duplicate/s with
-    the worse data fit with adjacent values
-    """
