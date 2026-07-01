@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-TIMESTAMP_COL = "Timestamp"
+TIMESTAMP_COL = 'Timestamp'
 FREQ_COL      = "FREQ"
 FLAG_COL      = "FLAG"
 
@@ -26,7 +26,7 @@ CURRENT_COLS  = [
 DATA_COLS = VOLTAGE_COLS + SECONDARY_VOLTAGE_COLS + CURRENT_COLS + [FREQ_COL]
 
 SAMPLE_PERIOD_MS = 20
-MAX_INTERP_GAP   = 10 * 1000/SAMPLE_PERIOD_MS  # 10 seconds (500 samples)
+MAX_INTERP_GAP   = 500  # 10 seconds (500 samples)
 MAX_FLAG = 1000 # Based om observed data not IEEE spec, FLAG is a bitwise FLAG rather than a latency value, however 1000 should be suitable
 
 
@@ -36,6 +36,8 @@ def process_data(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> tuple[pd.Da
     1. Removes duplicates (none found in observed data, included step for safety)
     2. Finds missing indexs and interpolates (done 2nd as requires no NaN data)
     3. Finds, flags or interpolate gps gaps
+    4. Drops unfillable NaN gaps
+    5. Applies segment ID's to avoid gap bridging
     Currently assumes index problem gaps will never exceed max interpolation gap
     Returns:
      Tuple of updated dataframe and series of booleans showing where data was interpolated
@@ -47,7 +49,9 @@ def process_data(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> tuple[pd.Da
     ideal_index = pd.date_range(start=df.index.min(), end=df.index.max(), freq='20ms')
     df = df.reindex(ideal_index)
 
+    print(f"  NaN rows after reindex: {df[FREQ_COL].isna().sum()}")
     was_missing = df[FREQ_COL].isna()
+
     df = df.interpolate(method='linear', limit=max_gap)
 
     # 3. Find and flag or interpolate gps gaps
@@ -55,6 +59,19 @@ def process_data(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> tuple[pd.Da
 
     still_nan = df[FREQ_COL].isna()
     interpolated_mask = was_missing & ~still_nan
+
+    print(f"  Interpolated rows: {interpolated_mask.sum()}")
+    print(f"  NaN rows to drop: {still_nan.sum()}")
+
+    # 4. Drop unfillable NaN rows
+    df = df.dropna(subset=DATA_COLS)
+
+    # 5. Assign segment IDs so sliding windows never straddle a gap
+    dt = df.index.to_series().diff()
+    expected = pd.Timedelta(f'{SAMPLE_PERIOD_MS}ms')
+    df['segment_id'] = (dt > expected * 1.5).cumsum()
+
+    print(f"  Final shape: {df.shape}, Segments: {df['segment_id'].nunique()}")
 
     return df, interpolated_mask
 
