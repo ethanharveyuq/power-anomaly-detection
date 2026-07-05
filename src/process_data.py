@@ -41,6 +41,7 @@ def process_data(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> tuple[pd.Da
     Currently assumes index problem gaps will never exceed max interpolation gap
     Returns:
      Tuple of updated dataframe and series of booleans showing where data was interpolated
+    TODO: Add randomness based on the datas variance when interpolating?
     """
     # 1. Remove duplicates
     df = df.loc[~df.index.duplicated(keep='first')]
@@ -131,5 +132,8 @@ def interpolate_gap(df: pd.DataFrame, start : pd.Timestamp, end : pd.Timestamp, 
     """
     df = df.copy()
     df.loc[start:end, DATA_COLS] = np.nan
+    len_gap = df.index.get_loc(end) - df.index.get_loc(start)
+    if len_gap >= max_gap:
+        return df
     df.loc[:, DATA_COLS] = df[DATA_COLS].interpolate(method="linear", limit=max_gap)
     return df
