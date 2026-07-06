@@ -1,23 +1,42 @@
 import sys
 import os
 
-# Force Python to see your root project folder
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 from src.load_data import load_data
 from src.process_data import process_data
+from src.dataset import PMUDataset
+from pathlib import Path
+
+# Columns included in AI categorisation
+COLS = [
+    "FREQ"
+]
+
+
+def add_to_dataset(dataset: PMUDataset, filepath: str) -> None:
+    df = load_data(filepath)
+    df, mask = process_data(df)
+    dataset.add_dataframe(df, COLS, filepath.name)
+    
 
 def run():
-    print("--- Script Started ---")  # Visual proof that the script is running
+
+    dataset = PMUDataset(250, 125)
+
+    directory_path = Path('data/')
+    # Iterate through all files in data
+    for file_path in directory_path.iterdir():
+
+        # Add data to dataset
+        if file_path.is_file():
+            add_to_dataset(dataset, file_path)
     
-    df = load_data('data/Bd18850_2021100102.csv')
-    print(f"Data loaded successfully. Shape: {df.shape}")
-    
-    df, mask = process_data(df)
-    print(f"Data processed. Mask count: {mask.sum()}")
-    
-    print("--- Printing Results ---")
-    print(df[mask])
+    print(len(dataset))
+    to_check = [0, 450, 1245, 2657, 3000]
+    for i in to_check:
+        window, label = dataset[i]
+        print(window)
+        print(label)
+        print(window.shape)
 
 if __name__ == "__main__":
     run()

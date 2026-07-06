@@ -60,7 +60,11 @@ class PMUDataset(Dataset):
     def _create_windows(self, df: pd.DataFrame, cols: list[str], label: int) -> None:
         """
         From a dataframe's data, creates the windows of data and stores them
-        Cuts off end if too smal;
+        Cuts off end if too small
+        Parameters:
+        df: dataframe to parse
+        cols: the columns of the dataframe to add
+        label: the label to store the window under
         """
         if len(df) < self.window_size:
             return
@@ -84,12 +88,4 @@ class PMUDataset(Dataset):
 
             # Move window
             start += self.stride
-
-        
-
-    def _get_label(self, df: pd.DataFrame) -> int:
-        """
-        Gets the PMU label from a dataframe
-        """
-        return
 
