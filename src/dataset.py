@@ -12,7 +12,7 @@ class PMUDataset(Dataset):
         Includes mapping between PMU_Id and integer
         """
         self.num_dataframes = 0
-        self.pmu_source = {}
+        self.pmu_source = {} # dict between name of pmu and number allocated
         self.window_size = window_size
         self.stride = stride
         self.windows = []
@@ -41,23 +41,51 @@ class PMUDataset(Dataset):
         set_num: the number dataset this is
         """
         if set_num is None:
-            set_num = self.num_dataframes
+            set_num = self.num_dataframes # default value is the current dataframe number
         
+        # increment dataframe number
         self.num_dataframes += 1
-        new_windows = self._create_windows(df, cols)
 
-        self.windows.extend(new_windows)
-        self.labels.extend([set_num] * len(new_windows))
-        
+        # iterate over all segments
+        max_segment = df['segment_id'].max()
+        for i in range(max_segment + 1):
+            segment_df = df.loc[df['segment_id'] == i]
+            # create the windows for that segment
+            self._create_windows(segment_df, cols, set_num)
+
+        # set name of pmu
         self.pmu_source[set_num] = name
 
-        
 
-    def _create_windows(self, df: pd.DataFrame, cols: list[str]) -> List(torch.Tensor):
+    def _create_windows(self, df: pd.DataFrame, cols: list[str], label: int) -> None:
         """
-        From a dataframe's data, creates the windows of data 
+        From a dataframe's data, creates the windows of data and stores them
+        Cuts off end if too smal;
         """
-        return
+        if len(df) < self.window_size:
+            return
+
+        start = 0
+        while start + self.window_size <= len(df):
+
+            # Extract window
+            window_df = df.iloc[start : start + self.window_size]
+            feature_df = window_df[cols]
+
+            # Convert to tensor
+            window_tensor = torch.tensor(
+            feature_df.values,
+            dtype=torch.float32
+            )
+            
+            # Store it
+            self.windows.append(window_tensor)
+            self.labels.append(label)
+
+            # Move window
+            start += self.stride
+
+        
 
     def _get_label(self, df: pd.DataFrame) -> int:
         """
