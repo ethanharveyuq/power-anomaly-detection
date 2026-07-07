@@ -149,10 +149,10 @@ class BaseData(object):
 
 # CONFIG Structure
 # config = {
-# 'file pattern' = A Regex pattern for which files to load
+# 'file pattern' = A Regex pattern for which files to load, must be compile()
 # 'window length' = Size of windows to use
 # 'stride' = Stride length between windows
-#
+# 'columns' = columns that will be included in windows
 #
 #
 #
@@ -162,31 +162,65 @@ class BaseData(object):
 class PMUData(BaseData):
 
     def __init__(self, root_dir: str, config: dict):
-        self.process_all_files(root_dir, config['file pattern'])
-        self.labels_df
-        self.feature_names
-        self.class_names
-        self.all_IDs
-        self.max_seq_len
+        # class names
+        self.class_names = []
+        # columns being used in windows
+        self.feature_names = self.config['columns']
+
+        self.config = config
+        self.max_seq_len = config['window length']
+
+        # Process 
+        self.process_all_files(root_dir)
+        self.num_classes = len(self.class_names)
         return
 
 
-    def process_all_files(self, root_dir: str, pattern: re.Pattern) -> None:
+    def process_all_files(self, root_dir: str) -> None:
+        
+        labels = []
+        feature_frames = []
+        win_idx = 0
+        files_loaded = 0
 
-        window_df = pd.DataFrame()
         directory_path = Path(root_dir)
-        for file_path in directory_path.iterdir():
-            
-            # process and add to 
-            if file_path.is_file() and re.match(pattern, file_path):
+        for file_path in sorted(directory_path.iterdir()):
+            # process and add
+            if file_path.is_file() and self.config['file pattern'].match(file_path.name):
                 print(f"Loading {file_path}")
+                # storing class name
+                self.class_names.append(file_path.name[:-15]) # chop off timestamp just keep PMU id TODO change with .stem and regex
                 # load df
                 df = self.load_single_file(file_path)
                 # clean df
                 df = self.clean_dataframe(df)
 
+                # iterate over all segments and make windows
+                for _, segment_df in df.groupby("segment_id"):
+                    # create the windows for that segment
+                    df_windows, new_win_idx = self.generate_windows(segment_df, new_win_idx)
+                    # add to list
+                    feature_frames.extend(df_windows)
+
+                # add window indexs to label then icrement
+                # should line up with windows added, should be moved to increment during window creation
+                for i in range(win_idx, new_win_idx):
+                    labels.append(files_loaded) # the windows in that range belong to the ID
+
+                win_idx = new_win_idx
+                files_loaded += 1
         
-    def load_single_file(file_path: str) -> pd.DataFrame:
+        # Window IDs
+        self.all_IDs = list(range(win_idx))
+        # create the feature_df and labels_df from the feature_frames and labels lists
+        self.feature_df = pd.concat(feature_frames)
+        self.feature_df = self.feature_df.set_index('WindowID')
+        self.labels_df = pd.DataFrame(labels, columns=['Label']) # could switch label to file or pmuid?
+        self.labels_df.index.name = 'WindowID'
+
+
+        
+    def load_single_file(self, file_path: str) -> pd.DataFrame:
         """
         Load the data from the csv file.
         Returns:
@@ -230,15 +264,38 @@ class PMUData(BaseData):
 
         return df
 
-    def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    def clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         df, interpolate_mask = process_data(df)
         return df
     
-    def generate_windows():
-        return
+    def generate_windows(self, df: pd.DataFrame, win_idx: int) -> tuple(list[pd.DataFrame], int):
+        """
+        Converts a dataframe into a list of dataframe windows with relevant data (from config columns)
+        and indexed following the win_idx passed to it
+        Returns:
+            A tuple containing
+                1. list of dataframes with relevant columns and window index
+                2. The next win_idx to use
+        """
+        window_length = self.config['window length']
+        stride = self.config['stride']
+        windows = []
     
-    def build_feature_dataframe():
-        return
+        if len(df) < window_length:
+            return [], win_idx
 
-    def build_label_dataframe():
-        return
+        start = 0
+        while start + window_length <= len(df):
+
+            # Extract window
+            window_df = df.iloc[start : start + window_length]
+            feature_df = window_df[self.feature_names] # TODO check if keeps relative order
+            feature_df = feature_df.copy()
+            feature_df["WindowID"] = win_idx
+            windows.append(feature_df)
+            
+            # Move window
+            start += stride
+            win_idx += 1
+        
+        return windows, win_idx
