@@ -13,21 +13,21 @@ FREQ_COL      = "FREQ"
 FLAG_COL      = "FLAG"
 
 VOLTAGE_COLS  = [
-    "UA_MAG", "UA_ANG",
-    "UB_MAG", "UB_ANG",
-    "UC_MAG", "UC_ANG",
+    "UA:MAG", "UA:ANG",
+    "UB:MAG", "UB:ANG",
+    "UC:MAG", "UC:ANG",
 ]
 
 SECONDARY_VOLTAGE_COLS = [
-    "UR_MAG", "UR_ANG",
-    "US_MAG", "US_ANG",
-    "UT_MAG", "UT_ANG",
+    "UR:MAG", "UR:ANG",
+    "US:MAG", "US:ANG",
+    "UT:MAG", "UT:ANG",
 ]
 CURRENT_COLS  = [
-    "IA_MAG", "IA_ANG",
-    "IB_MAG", "IB_ANG",
-    "IC_MAG", "IC_ANG",
-    "IN_MAG", "IN_ANG"
+    "IA:MAG", "IA:ANG",
+    "IB:MAG", "IB:ANG",
+    "IC:MAG", "IC:ANG",
+    "IN:MAG", "IN:ANG"
 ]
 
 DATA_COLS = VOLTAGE_COLS + SECONDARY_VOLTAGE_COLS + CURRENT_COLS + [FREQ_COL]
@@ -36,6 +36,21 @@ SAMPLE_PERIOD_MS = 20
 MAX_INTERP_GAP   = 500  # 10 seconds (500 samples)
 MAX_FLAG = 1000 # Based om observed data not IEEE spec, FLAG is a bitwise FLAG rather than a latency value, however 1000 should be suitable
 
+def simplify_column(col):
+    # Remove the [12345] prefix
+    col = re.sub(r'^\[\d+\]\s*', '', col)
+
+    # Match things like :FREQ, :DFDT, :FLAG
+    m = re.search(r':(FREQ|DFDT|FLAG)$', col)
+    if m:
+        return m.group(1)
+
+    # Match things like -UA:MAG, -IB:ANG, etc.
+    m = re.search(r'-(UA|UB|UC|UR|US|UT|IA|IB|IC|IN):(MAG|ANG)$', col)
+    if m:
+        return f'{m.group(1)}:{m.group(2)}'
+
+    return col
 
 def process_data(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> tuple[pd.DataFrame, pd.Series]:
     """
@@ -166,12 +181,11 @@ class BaseData(object):
 class PMUData(BaseData):
 
     def __init__(self, root_dir: str, config: dict):
+        self.config = config
         # class names
         self.class_names = []
         # columns being used in windows
-        self.feature_names = self.config['columns']
-
-        self.config = config
+        self.feature_names = config['columns']
         self.max_seq_len = config['window length']
 
         # Process 
@@ -188,17 +202,19 @@ class PMUData(BaseData):
         labels = []
         feature_frames = []
         win_idx = 0
+        new_win_idx = 0
         files_loaded = 0
 
         directory_path = Path(root_dir)
         for file_path in sorted(directory_path.iterdir()):
             # process and add
             if file_path.is_file() and self.config['file pattern'].match(file_path.name):
-                print(f"Loading {file_path}")
+                print(f"Loading {file_path.name}")
                 # storing class name
-                self.class_names.append(file_path.name[:-15]) # chop off timestamp just keep PMU id TODO change with .stem and regex
+                pmu_name = file_path.name[:-15]
+                self.class_names.append(pmu_name) # chop off timestamp just keep PMU id TODO change with .stem and regex
                 # load df
-                df = self.load_single_file(file_path)
+                df = self.load_single_file(file_path, pmu_name.upper())
                 # clean df
                 df = self.clean_dataframe(df)
 
@@ -227,7 +243,7 @@ class PMUData(BaseData):
 
 
         
-    def load_single_file(self, file_path: str) -> pd.DataFrame:
+    def load_single_file(self, file_path: str, pmu_name: str) -> pd.DataFrame:
         """
         Load the data from the csv file.
         Returns:
@@ -238,37 +254,10 @@ class PMUData(BaseData):
 
         # Formatting and renaming columns
         df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='%d/%m/%Y %H:%M:%S.%f')
-        new_names = {'[10772] NOJA_AUSNET!BD18850:FREQ' : 'FREQ',
-                '[10773] NOJA_AUSNET!BD18850:DFDT' : 'DF/DT',
-                '[10774] NOJA_AUSNET!BD18850:FLAG' : 'FLAG',
-                '[10775] NOJA_AUSNET!BD18850-UA:MAG' : 'UA_MAG',
-                '[10776] NOJA_AUSNET!BD18850-UA:ANG' : 'UA_ANG',
-                '[10777] NOJA_AUSNET!BD18850-UB:MAG' : 'UB_MAG',
-                '[10778] NOJA_AUSNET!BD18850-UB:ANG' : 'UB_ANG',
-                '[10779] NOJA_AUSNET!BD18850-UC:MAG' : 'UC_MAG',
-                '[10780] NOJA_AUSNET!BD18850-UC:ANG' : 'UC_ANG',
-                '[10781] NOJA_AUSNET!BD18850-UR:MAG' : 'UR_MAG',
-                '[10782] NOJA_AUSNET!BD18850-UR:ANG' : 'UR_ANG',
-                '[10783] NOJA_AUSNET!BD18850-US:MAG' : 'US_MAG',
-                '[10784] NOJA_AUSNET!BD18850-US:ANG' : 'US_ANG',
-                '[10785] NOJA_AUSNET!BD18850-UT:MAG' : 'UT_MAG',
-                '[10786] NOJA_AUSNET!BD18850-UT:ANG' : 'UT_ANG',
-                '[10787] NOJA_AUSNET!BD18850-IA:MAG' : 'IA_MAG',
-                '[10788] NOJA_AUSNET!BD18850-IA:ANG' : 'IA_ANG',
-                '[10790] NOJA_AUSNET!BD18850-IB:MAG' : 'IB_MAG',
-                '[10791] NOJA_AUSNET!BD18850-IB:ANG' : 'IB_ANG',
-                '[10792] NOJA_AUSNET!BD18850-IC:MAG' : 'IC_MAG',
-                '[10793] NOJA_AUSNET!BD18850-IC:ANG' : 'IC_ANG',
-                '[10794] NOJA_AUSNET!BD18850-IN:MAG' : 'IN_MAG',
-                '[10795] NOJA_AUSNET!BD18850-IN:ANG' : 'IN_ANG'
-                }
-
-        df = df.rename(columns=new_names)
+        df.columns = [simplify_column(col) for col in df.columns]
 
         df = df.set_index('Timestamp').sort_index()
-        df = df.drop(columns=['[10754] NOJA_AUSNET!BD18850:ALOG1', '[10755] NOJA_AUSNET!BD18850:ALOG2'])
-        print(df['FLAG'].value_counts().sort_index())
-
+        #df = df.drop(columns=['ALOG1', 'ALOG2']) TODO fix this to drop columns, might save some space
         return df
 
     def clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -278,7 +267,7 @@ class PMUData(BaseData):
         df, interpolate_mask = process_data(df)
         return df
     
-    def generate_windows(self, df: pd.DataFrame, win_idx: int) -> tuple(list[pd.DataFrame], int):
+    def generate_windows(self, df: pd.DataFrame, win_idx: int) -> tuple[list[pd.DataFrame], int]:
         """
         Converts a dataframe into a list of dataframe windows with relevant data (from config columns)
         and indexed following the win_idx passed to it

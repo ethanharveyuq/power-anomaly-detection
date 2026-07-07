@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import pandas as pd
-from PMUData import PMUData
+from .PMUData import PMUData
 
 class PMUDataset(Dataset):
     def __init__(self, data: PMUData) -> None:
@@ -23,7 +23,7 @@ class PMUDataset(Dataset):
         """
         return len(self.data.all_IDs)
     
-    def __getitem__(self, idx: int) -> tuple(torch.Tensor, torch.Tensor):
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Returns the window and label pair at the index
         """
