@@ -181,6 +181,9 @@ class PMUData(BaseData):
 
 
     def process_all_files(self, root_dir: str) -> None:
+        """
+        Iterates through all files in directory, loads, processes, makes windows
+        """
         
         labels = []
         feature_frames = []
@@ -207,8 +210,8 @@ class PMUData(BaseData):
                     feature_frames.extend(df_windows)
 
                 # add window indexs to label then icrement
-                # should line up with windows added, should be moved to increment during window creation
-                for i in range(win_idx, new_win_idx):
+                # should line up with windows added, TODO should be moved to increment during window creation
+                for _ in range(win_idx, new_win_idx):
                     labels.append(files_loaded) # the windows in that range belong to the ID
 
                 win_idx = new_win_idx
@@ -269,6 +272,9 @@ class PMUData(BaseData):
         return df
 
     def clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Cleans dataframe
+        """
         df, interpolate_mask = process_data(df)
         return df
     
