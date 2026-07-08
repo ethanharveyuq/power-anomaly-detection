@@ -32,9 +32,9 @@ WINDOW_LEN = 500 # 10 secs
 # Stride Length
 STRIDE = 250 # 50% overlap
     
-def run():
+def run(config):
 
-    # Step 1: create config from args
+    # Step 1: create config from args?
 
     config = {
         'file pattern' : PATTERN,
@@ -45,22 +45,27 @@ def run():
 
     # Step 2: Create seeds
 
-
+    torch.manual_seed(config['seed'])
 
     # Step 3: Select device (CPU, GPU)
-
+    device = torch.device('cuda' if (torch.cuda.is_available() and config['gpu'] != '-1') else 'cpu')
 
     # Step 4: Load Training data
+    train_data = PMUData(config['train data'], config)
 
     # Step 4.5: (maybe) Load Acceptance data
+    acceptance_data = PMUData(config['acceptance data'], config)
 
     # Step 5: Load testing data
+    test_data = PMUData(config['test data'], config)
 
     # Step 6: create PMUDataset object wrappers
-
+    train_dataset = PMUDataset(train_data)
 
     # Step 7: Create Dataloaders (create mini batches)
 
+
+    
     # Step 8: Create GPT4TS model
 
 
@@ -108,14 +113,6 @@ def run():
 
 
     # Step 15: Final testing
-
-
-
-    
-
-
-
-    data = PMUData('data/', config)
 
 if __name__ == "__main__":
     run()
