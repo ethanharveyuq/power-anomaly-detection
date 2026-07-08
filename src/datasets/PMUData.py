@@ -36,7 +36,11 @@ SAMPLE_PERIOD_MS = 20
 MAX_INTERP_GAP   = 500  # 10 seconds (500 samples)
 MAX_FLAG = 1000 # Based om observed data not IEEE spec, FLAG is a bitwise FLAG rather than a latency value, however 1000 should be suitable
 
-def simplify_column(col):
+def simplify_column(col: str) -> str:
+    """
+    Strips the column name of its unnecessary unique header
+    TODO add acceptane of LOGA and LOGB cols
+    """
     # Remove the [12345] prefix
     col = re.sub(r'^\[\d+\]\s*', '', col)
 
