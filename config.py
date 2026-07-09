@@ -45,11 +45,11 @@ def create_config(args: argparse.Namespace) -> dict:
     """
     config = {
         "train data": args.data_dir,
-        "train pattern": re.compile(r".*_00\.csv$"),
+        "train pattern": re.compile(r"^.*00\.csv$"),
         "validation data": args.data_dir,
-        "validation pattern": re.compile(r".*_01\.csv$"),
+        "validation pattern": re.compile(r"^.*01\.csv$"),
         "test data": args.data_dir,
-        "test pattern": re.compile(r".*_02\.csv$"),
+        "test pattern": re.compile(r"^.*02\.csv$"),
         "window length": args.window_length,
         "stride": args.stride,
         "columns": args.columns,

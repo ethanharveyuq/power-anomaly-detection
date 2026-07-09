@@ -1,7 +1,7 @@
 from src.datasets.PMUData import PMUData
 from src.datasets.dataset import PMUDataset
 from src.models.gpt4ts import gpt4ts
-from .config import parse_args, create_config
+from config import parse_args, create_config
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -19,43 +19,43 @@ def run(config):
     np.random.seed(config['seed'])
     random.seed(config['seed'])
 
-    # Select device (CPU, GPU)
-    device = torch.device('cuda' if (torch.cuda.is_available() and config['gpu'] != '-1') else 'cpu')
+    # Select device (CPU, GPU) TODO add cuda when operating on PC
+    device = torch.device('cpu')
 
     # Load Data
     train_data = PMUData(config['train data'], config['train pattern'], config)
-    validation_data = PMUData(config['validation data'], config['validation pattern'], config)
-    test_data = PMUData(config['test data'], config['test pattern'], config)
+    #validation_data = PMUData(config['validation data'], config['validation pattern'], config)
+    #test_data = PMUData(config['test data'], config['test pattern'], config)
 
     # create PMUDataset object wrappers
     train_dataset = PMUDataset(train_data)
-    validation_dataset = PMUDataset(validation_data)
-    test_dataset = PMUDataset(test_data)
+    #validation_dataset = PMUDataset(validation_data)
+    #test_dataset = PMUDataset(test_data)
 
     # Create Dataloaders (create mini batches)
     train_loader = DataLoader(
     dataset=train_dataset, 
-    batch_size=32,      # Group data into chunks of 32
+    batch_size=config['batch size'],      # Group data into chunks of 32
     shuffle=True,       # Mix up data order every epoch
     num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
     pin_memory=True     # Speed up data copy to GPU memory
     )
 
-    validation_loader = DataLoader(
-    dataset=validation_dataset, 
-    batch_size=32,      
-    shuffle=True,       
-    num_workers=2,      
-    pin_memory=True     
-    )
+    #validation_loader = DataLoader(
+    #dataset=validation_dataset, 
+    #batch_size=config['batch size'],      
+    #shuffle=True,       
+    #num_workers=2,      
+    #pin_memory=True     
+    #)
 
-    test_loader = DataLoader(
-    dataset=test_dataset, 
-    batch_size=32,      
-    shuffle=True,       
-    num_workers=2,      
-    pin_memory=True
-    )
+    #test_loader = DataLoader(
+    #dataset=test_dataset, 
+    #batch_size=config['batch size'],      
+    #shuffle=True,       
+    #num_workers=2,      
+    #pin_memory=True
+    #)
 
     # Create GPT4TS model
     model = gpt4ts(config, train_data)
@@ -64,13 +64,14 @@ def run(config):
     # Step 9: optimiser
     optimizer = torch.optim.AdamW(
     model.parameters(),
-    lr=config["learning_rate"],
+    lr=config["learning rate"],
     weight_decay=0.01
     )
 
     # Step 10: Loss
     criterion = nn.CrossEntropyLoss() # for classification
 
+    """
     # Step 11: Training loop
 
     best_f1 = 0.0
@@ -197,6 +198,7 @@ def run(config):
     print(f"F1 Score : {f1:.4f}")
 
     print(confusion)
+    """
 
 if __name__ == "__main__":
     args = parse_args()

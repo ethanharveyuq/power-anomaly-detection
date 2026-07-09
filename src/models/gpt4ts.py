@@ -14,7 +14,7 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Model
 from transformers.models.gpt2.configuration_gpt2 import GPT2Config
 from transformers import BertTokenizer, BertModel
 from einops import rearrange
-from models.embed import DataEmbedding, DataEmbedding_wo_time
+from .embed import DataEmbedding, DataEmbedding_wo_time
 
 
 class gpt4ts(nn.Module):
@@ -46,7 +46,12 @@ class gpt4ts(nn.Module):
             else:
                 param.requires_grad = False
 
-        device = torch.device('cuda:{}'.format(0))
+        # TODO This has been edited change when cuda is avaliable
+        if torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
+
         self.gpt2.to(device=device)
 
         self.act = F.gelu
