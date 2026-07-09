@@ -86,6 +86,14 @@ def run(config):
     pin_memory=True     # Speed up data copy to GPU memory
     )
 
+    validation_loader = DataLoader(
+    dataset=validation_dataset, 
+    batch_size=32,      # Group data into chunks of 32
+    shuffle=True,       # Mix up data order every epoch
+    num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
+    pin_memory=True     # Speed up data copy to GPU memory
+    )
+
     # Step 8: Create GPT4TS model
     model = gpt4ts(config, train_data)
     model.to(device)
@@ -101,35 +109,92 @@ def run(config):
     criterion = nn.CrossEntropyLoss() # for classification
 
     # Step 11: Training loop
-    # for every epoch:
-    #   for every batch:
-    #       window batch, label batch
-    #       Move tensors to GPU
-    #
-    #            ↓
-    #
-    #            Forward pass
-    #
-    #            ↓
-    #
-    #            Compute loss
-    #
-    #            ↓
-    #
-    #            Backpropagation
-    #
-    #            ↓
-    #
-    #            Optimizer step
-    #
-    #           ↓
-    #
-    #            Zero gradients
-    #
 
+    best_f1 = 0.0
+    for epoch in range(config["epochs"]):
+
+        print(f"\nEpoch {epoch + 1}/{config['epochs']}")
+
+        model.train()
+
+        running_loss = 0.0
+
+        for windows, labels in train_loader:
+
+            # Move tensors onto CPU/GPU
+            windows = windows.to(device)
+            labels = labels.to(device)
+
+            # Clear previous gradients
+            optimizer.zero_grad()
+
+            # Forward pass through GPT4TS
+            outputs = model(windows)
+
+            # Compute loss
+            loss = criterion(outputs, labels)
+
+            # Compute gradients
+            loss.backward()
+
+            # Update model parameters
+            optimizer.step()
+
+            # Statistics
+            running_loss += loss.item()
+
+        average_train_loss = running_loss / len(train_loader)
+
+        print(f"Training Loss = {average_train_loss:.4f}")
+
+        model.eval()
+
+        validation_loss = 0.0
+
+        all_predictions = []
+        all_labels = []
+
+        with torch.no_grad():
+
+            for windows, labels in acceptance_loader:
+
+                windows = windows.to(device)
+                labels = labels.to(device)
+
+                outputs = model(windows)
+
+                loss = criterion(outputs, labels)
+
+                validation_loss += loss.item()
+
+                # Predicted class
+                predictions = torch.argmax(outputs, dim=1)
+
+                all_predictions.extend(predictions.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+
+        average_validation_loss = validation_loss / len(acceptance_loader)
+
+        # Calculate metrics
+        accuracy = ...
+        precision = ...
+        recall = ...
+        f1 = ...
+
+        print(f"Validation Loss = {average_validation_loss:.4f}")
+        print(f"Accuracy = {accuracy:.4f}")
+        print(f"F1 Score = {f1:.4f}")
+
+        if f1 > best_f1:
+
+            best_f1 = f1
+
+            torch.save(model.state_dict(), "best_model.pt")
+
+            print("New best model saved.")
+            
 
     # Step 12: Validation, compute f1 loss accuracy confusion matrix
-
 
 
     # Step 13: If accuracy increased, save model
