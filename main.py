@@ -1,22 +1,47 @@
 from src.datasets.PMUData import PMUData
 from src.datasets.dataset import PMUDataset
+from src.models.gpt4ts import gpt4ts
 import torch
-
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+import numpy as np
+import random
 import re
 
 
 """
-Config will have:
-data directory
-train regex
-test regex
-window length
-stride
-batch size
-learning rate
-epochs
-columns
-GPT4TS hyperparameters
+config = {
+
+    "train data": "...",
+
+    "validation data": "...",
+
+    "test data": "...",
+
+    "window length": 500,
+
+    "stride": 250,
+
+    "columns": ["FREQ"],
+
+    "batch size": 32,
+
+    "epochs": 20,
+
+    "learning rate": 1e-4,
+
+    "seed": 42,
+
+    "gpu": 0,
+
+    "patch_size": ...,
+
+    "d_model": ...,
+
+    "dropout": ...
+
+    "test": "test only"
+}
 """
 
 # Columns included in AI categorisation
@@ -33,46 +58,47 @@ WINDOW_LEN = 500 # 10 secs
 STRIDE = 250 # 50% overlap
     
 def run(config):
-
-    # Step 1: create config from args?
-
-    config = {
-        'file pattern' : PATTERN,
-        'window length' : WINDOW_LEN,
-        'stride' : STRIDE,
-        'columns' : COLS
-        }
-
     # Step 2: Create seeds
 
     torch.manual_seed(config['seed'])
+    np.random.seed(config['seed'])
+    random.seed(config['seed'])
 
     # Step 3: Select device (CPU, GPU)
     device = torch.device('cuda' if (torch.cuda.is_available() and config['gpu'] != '-1') else 'cpu')
 
-    # Step 4: Load Training data
+    # Step 4: Load Data
     train_data = PMUData(config['train data'], config)
-
-    # Step 4.5: (maybe) Load Acceptance data
-    acceptance_data = PMUData(config['acceptance data'], config)
-
-    # Step 5: Load testing data
+    validation_data = PMUData(config['acceptance data'], config)
     test_data = PMUData(config['test data'], config)
 
     # Step 6: create PMUDataset object wrappers
     train_dataset = PMUDataset(train_data)
+    validation_dataset = PMUDataset(validation_data)
+    test_dataset = PMUDataset(test_data)
 
     # Step 7: Create Dataloaders (create mini batches)
+    train_loader = DataLoader(
+    dataset=train_dataset, 
+    batch_size=32,      # Group data into chunks of 32
+    shuffle=True,       # Mix up data order every epoch
+    num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
+    pin_memory=True     # Speed up data copy to GPU memory
+    )
 
-
-    
     # Step 8: Create GPT4TS model
-
+    model = gpt4ts(config, train_data)
+    model.to(device)
 
     # Step 9: optimiser
+    optimizer = torch.optim.AdamW(
+    model.parameters(),
+    lr=config["learning_rate"],
+    weight_decay=0.01
+    )
 
     # Step 10: Loss
-
+    criterion = nn.CrossEntropyLoss() # for classification
 
     # Step 11: Training loop
     # for every epoch:
