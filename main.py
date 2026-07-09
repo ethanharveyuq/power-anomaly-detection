@@ -1,6 +1,7 @@
 from src.datasets.PMUData import PMUData
 from src.datasets.dataset import PMUDataset
 from src.models.gpt4ts import gpt4ts
+from .config import parse_args, create_config
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -8,56 +9,10 @@ import numpy as np
 import random
 import re
 
-
-"""
-config = {
-
-    "train data": "...",
-
-    "validation data": "...",
-
-    "test data": "...",
-
-    "window length": 500,
-
-    "stride": 250,
-
-    "columns": ["FREQ"],
-
-    "batch size": 32,
-
-    "epochs": 20,
-
-    "learning rate": 1e-4,
-
-    "seed": 42,
-
-    "gpu": 0,
-
-    "patch_size": ...,
-
-    "d_model": ...,
-
-    "dropout": ...
-
-    "test": "test only"
-}
-"""
-
-# Columns included in AI categorisation
-COLS = [
-    "FREQ"
-]
-# File pattern to include
-PATTERN = re.compile(r"^.*00\.csv$")
-
-# Window Length
-WINDOW_LEN = 500 # 10 secs
-
-# Stride Length
-STRIDE = 250 # 50% overlap
     
 def run(config):
+    """
+    """
     # Step 2: Create seeds
 
     torch.manual_seed(config['seed'])
@@ -92,6 +47,14 @@ def run(config):
     shuffle=True,       # Mix up data order every epoch
     num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
     pin_memory=True     # Speed up data copy to GPU memory
+    )
+
+    test_loader = DataLoader(
+    dataset=test_dataset, 
+    batch_size=32,      # Group data into chunks of 32
+    shuffle=True,       # Mix up data order every epoch
+    num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
+    pin_memory=True
     )
 
     # Step 8: Create GPT4TS model
@@ -156,7 +119,7 @@ def run(config):
 
         with torch.no_grad():
 
-            for windows, labels in acceptance_loader:
+            for windows, labels in validation_loader:
 
                 windows = windows.to(device)
                 labels = labels.to(device)
@@ -173,7 +136,7 @@ def run(config):
                 all_predictions.extend(predictions.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
 
-        average_validation_loss = validation_loss / len(acceptance_loader)
+        average_validation_loss = validation_loss / len(validation_loader)
 
         # Calculate metrics
         accuracy = ...
@@ -192,18 +155,50 @@ def run(config):
             torch.save(model.state_dict(), "best_model.pt")
 
             print("New best model saved.")
-            
-
-    # Step 12: Validation, compute f1 loss accuracy confusion matrix
 
 
-    # Step 13: If accuracy increased, save model
-
-
-    # Step 14: Reload    
+    # Reload best model
+    model.load_state_dict(torch.load("best_model.pt"))
+    model.eval()
 
 
     # Step 15: Final testing
+    all_predictions = []
+    all_labels = []
+
+    with torch.no_grad():
+
+        for windows, labels in test_loader:
+
+            windows = windows.to(device)
+            labels = labels.to(device)
+
+            outputs = model(windows)
+
+            predictions = torch.argmax(outputs, dim=1)
+
+            all_predictions.extend(predictions.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+    
+
+    # Compute final metrics
+
+    accuracy = ...
+    precision = ...
+    recall = ...
+    f1 = ...
+    confusion = ...
+
+    print("Final Results")
+    print("---------------------")
+    print(f"Accuracy : {accuracy:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall   : {recall:.4f}")
+    print(f"F1 Score : {f1:.4f}")
+
+    print(confusion)
 
 if __name__ == "__main__":
-    run()
+    args = parse_args()
+    config = create_config(args)
+    run(config)
