@@ -39,46 +39,29 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def create_config(args):
-
+def create_config(args: argparse.Namespace) -> dict:
+    """
+    Creates dict from parser args
+    """
     config = {
-
         "train data": args.data_dir,
-
         "train pattern": re.compile(r".*_00\.csv$"),
-
         "validation data": args.data_dir,
-
         "validation pattern": re.compile(r".*_01\.csv$"),
-
         "test data": args.data_dir,
-
         "test pattern": re.compile(r".*_02\.csv$"),
-
         "window length": args.window_length,
-
         "stride": args.stride,
-
         "columns": args.columns,
-
         "batch size": args.batch_size,
-
         "epochs": args.epochs,
-
         "learning rate": args.learning_rate,
-
         "seed": args.seed,
-
         "gpu": args.gpu,
-
         "patch_size": args.patch_size,
-
         "d_model": args.d_model,
-
         "dropout": args.dropout,
-
         "test only": args.test_only
-
     }
 
     return config

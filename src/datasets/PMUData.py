@@ -170,22 +170,12 @@ class BaseData(object):
             self.n_proc = min(n_proc, cpu_count())
 
 
-# CONFIG Structure
-# config = {
-# 'file pattern' = A Regex pattern for which files to load, must be compile()
-# 'window length' = Size of windows to use
-# 'stride' = Stride length between windows
-# 'columns' = columns that will be included in windows
-#
-#
-#
-# }
-
 
 class PMUData(BaseData):
 
-    def __init__(self, root_dir: str, config: dict):
+    def __init__(self, root_dir: str, file_pattern: re.Pattern, config: dict):
         self.config = config
+        self.file_pattern = file_pattern
         # class names
         self.class_names = []
         # columns being used in windows
@@ -212,7 +202,7 @@ class PMUData(BaseData):
         directory_path = Path(root_dir)
         for file_path in sorted(directory_path.iterdir()):
             # process and add
-            if file_path.is_file() and self.config['file pattern'].match(file_path.name):
+            if file_path.is_file() and self.file_pattern.match(file_path.name):
                 print(f"Loading {file_path.name}")
                 # storing class name
                 pmu_name = file_path.name[:-15]

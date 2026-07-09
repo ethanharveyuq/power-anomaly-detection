@@ -13,26 +13,26 @@ import re
 def run(config):
     """
     """
-    # Step 2: Create seeds
+    # Create seeds
 
     torch.manual_seed(config['seed'])
     np.random.seed(config['seed'])
     random.seed(config['seed'])
 
-    # Step 3: Select device (CPU, GPU)
+    # Select device (CPU, GPU)
     device = torch.device('cuda' if (torch.cuda.is_available() and config['gpu'] != '-1') else 'cpu')
 
-    # Step 4: Load Data
-    train_data = PMUData(config['train data'], config)
-    validation_data = PMUData(config['acceptance data'], config)
-    test_data = PMUData(config['test data'], config)
+    # Load Data
+    train_data = PMUData(config['train data'], config['train pattern'], config)
+    validation_data = PMUData(config['validation data'], config['validation pattern'], config)
+    test_data = PMUData(config['test data'], config['test pattern'], config)
 
-    # Step 6: create PMUDataset object wrappers
+    # create PMUDataset object wrappers
     train_dataset = PMUDataset(train_data)
     validation_dataset = PMUDataset(validation_data)
     test_dataset = PMUDataset(test_data)
 
-    # Step 7: Create Dataloaders (create mini batches)
+    # Create Dataloaders (create mini batches)
     train_loader = DataLoader(
     dataset=train_dataset, 
     batch_size=32,      # Group data into chunks of 32
@@ -43,21 +43,21 @@ def run(config):
 
     validation_loader = DataLoader(
     dataset=validation_dataset, 
-    batch_size=32,      # Group data into chunks of 32
-    shuffle=True,       # Mix up data order every epoch
-    num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
-    pin_memory=True     # Speed up data copy to GPU memory
+    batch_size=32,      
+    shuffle=True,       
+    num_workers=2,      
+    pin_memory=True     
     )
 
     test_loader = DataLoader(
     dataset=test_dataset, 
-    batch_size=32,      # Group data into chunks of 32
-    shuffle=True,       # Mix up data order every epoch
-    num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
+    batch_size=32,      
+    shuffle=True,       
+    num_workers=2,      
     pin_memory=True
     )
 
-    # Step 8: Create GPT4TS model
+    # Create GPT4TS model
     model = gpt4ts(config, train_data)
     model.to(device)
 
