@@ -31,7 +31,7 @@ class PMUDataset(Dataset):
         window_df = self.feature_df.loc[window_id]
         window = window_df.to_numpy(dtype=np.float32)
         window = torch.tensor(window)
-        label = self.labels_df.loc[window_id]
+        label = self.data.labels_df.loc[idx, "Label"]
         label = torch.tensor(label)
         return window, label
 

@@ -60,8 +60,9 @@ class gpt4ts(nn.Module):
         
         self.ln_proj = nn.LayerNorm(config['d_model'] * self.patch_num)
         self.out_layer = nn.Linear(config['d_model'] * self.patch_num, self.num_classes)
-        
-    def forward(self, x_enc, x_mark_enc):
+    
+    # Changed func definition to have default none value
+    def forward(self, x_enc, x_mark_enc=None):
         B, L, M = x_enc.shape
         
         input_x = rearrange(x_enc, 'b l m -> b m l')
