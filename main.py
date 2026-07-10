@@ -2,6 +2,7 @@ from src.datasets.PMUData import PMUData
 from src.datasets.dataset import PMUDataset
 from src.models.gpt4ts import gpt4ts
 from config import parse_args, create_config
+import sklearn.metrics as skm
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -23,13 +24,16 @@ def run(config):
     device = torch.device('cpu')
 
     # Load Data
+    print("Loading training data...")
     train_data = PMUData(config['train data'], config['train pattern'], config)
-    #validation_data = PMUData(config['validation data'], config['validation pattern'], config)
+    print("Loading validation data...")
+    validation_data = PMUData(config['validation data'], config['validation pattern'], config)
+    #print("Loading testing data")
     #test_data = PMUData(config['test data'], config['test pattern'], config)
 
     # create PMUDataset object wrappers
     train_dataset = PMUDataset(train_data)
-    #validation_dataset = PMUDataset(validation_data)
+    validation_dataset = PMUDataset(validation_data)
     #test_dataset = PMUDataset(test_data)
 
     # Create Dataloaders (create mini batches)
@@ -41,13 +45,13 @@ def run(config):
     pin_memory=True     # Speed up data copy to GPU memory
     )
 
-    #validation_loader = DataLoader(
-    #dataset=validation_dataset, 
-    #batch_size=config['batch size'],      
-    #shuffle=True,       
-    #num_workers=2,      
-    #pin_memory=True     
-    #)
+    validation_loader = DataLoader(
+    dataset=validation_dataset, 
+    batch_size=config['batch size'],      
+    shuffle=True,       
+    num_workers=2,      
+    pin_memory=True     
+    )
 
     #test_loader = DataLoader(
     #dataset=test_dataset, 
@@ -58,22 +62,23 @@ def run(config):
     #)
 
     # Create GPT4TS model
+    print("Initialising LLM Model...")
     model = gpt4ts(config, train_data)
     model.to(device)
 
-    # Step 9: optimiser
+    # Initialise ptimiser
     optimizer = torch.optim.AdamW(
     model.parameters(),
     lr=config["learning rate"],
     weight_decay=0.01
     )
 
-    # Step 10: Loss
+    # Loss model
     criterion = nn.CrossEntropyLoss() # for classification
 
-    """
-    # Step 11: Training loop
-
+    
+    # Training loop
+    print("Beginning training...")
     best_f1 = 0.0
     for epoch in range(config["epochs"]):
 
@@ -84,26 +89,19 @@ def run(config):
         running_loss = 0.0
 
         for windows, labels in train_loader:
-
             # Move tensors onto CPU/GPU
             windows = windows.to(device)
             labels = labels.to(device)
-
             # Clear previous gradients
             optimizer.zero_grad()
-
             # Forward pass through GPT4TS
             outputs = model(windows)
-
             # Compute loss
             loss = criterion(outputs, labels)
-
             # Compute gradients
             loss.backward()
-
             # Update model parameters
             optimizer.step()
-
             # Statistics
             running_loss += loss.item()
 
@@ -121,40 +119,33 @@ def run(config):
         with torch.no_grad():
 
             for windows, labels in validation_loader:
-
                 windows = windows.to(device)
                 labels = labels.to(device)
-
                 outputs = model(windows)
-
                 loss = criterion(outputs, labels)
-
                 validation_loss += loss.item()
 
                 # Predicted class
                 predictions = torch.argmax(outputs, dim=1)
-
                 all_predictions.extend(predictions.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
 
         average_validation_loss = validation_loss / len(validation_loader)
 
         # Calculate metrics
-        accuracy = ...
-        precision = ...
-        recall = ...
-        f1 = ...
+        accuracy = skm.accuracy_score(all_labels, all_predictions)
+        precision = skm.precision_score(all_labels, all_predictions, average="macro")
+        recall = skm.recall_score(all_labels, all_predictions, average="macro")
+        f1 = skm.f1_score(all_labels, all_predictions, average="macro")
 
         print(f"Validation Loss = {average_validation_loss:.4f}")
         print(f"Accuracy = {accuracy:.4f}")
         print(f"F1 Score = {f1:.4f}")
 
+        # Change best f1 if needed
         if f1 > best_f1:
-
             best_f1 = f1
-
             torch.save(model.state_dict(), "best_model.pt")
-
             print("New best model saved.")
 
 
@@ -162,7 +153,7 @@ def run(config):
     model.load_state_dict(torch.load("best_model.pt"))
     model.eval()
 
-
+    """
     # Step 15: Final testing
     all_predictions = []
     all_labels = []

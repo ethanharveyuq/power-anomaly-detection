@@ -203,7 +203,6 @@ class PMUData(BaseData):
         for file_path in sorted(directory_path.iterdir()):
             # process and add
             if file_path.is_file() and self.file_pattern.match(file_path.name):
-                print(f"Loading {file_path.name}")
                 # storing class name
                 pmu_name = file_path.name[:-15]
                 self.class_names.append(pmu_name) # chop off timestamp just keep PMU id TODO change with .stem and regex
