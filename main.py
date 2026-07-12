@@ -81,7 +81,6 @@ def run(config):
     # Training loop
     print("Beginning training...")
     best_f1 = 0.0
-    best_f1 = 0.0
     start_epoch = 0
 
     # Resume trainign from last model
