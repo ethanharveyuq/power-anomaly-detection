@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import random
 import re
+import os
 
     
 def run(config):
@@ -80,9 +81,29 @@ def run(config):
     # Training loop
     print("Beginning training...")
     best_f1 = 0.0
-    for epoch in range(config["epochs"]):
+    best_f1 = 0.0
+    start_epoch = 0
 
-        print(f"\nEpoch {epoch + 1}/{config['epochs']}")
+    # Resume trainign from last model
+    if config["resume"] and os.path.exists("checkpoint.pt"):
+
+        checkpoint = torch.load("checkpoint.pt", map_location=device)
+
+        model.load_state_dict(checkpoint["model"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
+
+        start_epoch = checkpoint["epoch"] + 1
+        best_f1 = checkpoint["best_f1"]
+
+        print(f"Resuming from epoch {start_epoch}")
+    else:
+        print("No checkpoint found. Starting new training run.")
+
+    end_epoch = start_epoch + config["epochs per run"]
+
+    for epoch in range(start_epoch, end_epoch):
+
+        print(f"\nEpoch {epoch + 1}/{end_epoch}")
 
         model.train()
 
@@ -147,6 +168,15 @@ def run(config):
             best_f1 = f1
             torch.save(model.state_dict(), "best_model.pt")
             print("New best model saved.")
+
+        # save last model
+        torch.save({
+            "epoch": epoch,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "best_f1": best_f1,
+            "config": config
+        }, "checkpoint.pt")
 
 
     # Reload best model

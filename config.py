@@ -22,11 +22,13 @@ def parse_args() -> argparse.Namespace:
 
     # Training
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--epochs-per-run", type=int, default=20)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
 
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--resume", type=bool, default=1)
+
 
     # GPT4TS
     parser.add_argument("--patch-size", type=int, default=10)
@@ -54,14 +56,15 @@ def create_config(args: argparse.Namespace) -> dict:
         "stride": args.stride,
         "columns": args.columns,
         "batch size": args.batch_size,
-        "epochs": args.epochs,
+        "epochs per run": args.epochs_per_run,
         "learning rate": args.learning_rate,
         "seed": args.seed,
         "gpu": args.gpu,
         "patch_size": args.patch_size,
         "d_model": args.d_model,
         "dropout": args.dropout,
-        "test only": args.test_only
+        "test only": args.test_only,
+        "resume": args.resume
     }
 
     return config

@@ -6,7 +6,7 @@ python3 main.py \
     --stride 250 \
     --columns FREQ \
     --batch-size 32 \
-    --epochs 20 \
+    --epochs-per-run 20 \
     --learning-rate 1e-4 \
     --seed 42 \
     --gpu 0 \
