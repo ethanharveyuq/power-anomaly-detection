@@ -12,4 +12,5 @@ python3 main.py \
     --gpu 0 \
     --patch-size 10 \
     --d-model 768 \
-    --dropout 0.1
+    --dropout 0.1 \
+    --resume 1
