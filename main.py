@@ -10,6 +10,8 @@ import numpy as np
 import random
 import re
 import os
+import time
+import tracemalloc
 
     
 def run(config):
@@ -83,7 +85,7 @@ def run(config):
     best_f1 = 0.0
     start_epoch = 0
 
-    # Resume trainign from last model
+    # Resume training from last model
     if config["resume"] and os.path.exists("checkpoint.pt"):
 
         checkpoint = torch.load("checkpoint.pt", map_location=device)
@@ -101,7 +103,6 @@ def run(config):
     end_epoch = start_epoch + config["epochs per run"]
 
     for epoch in range(start_epoch, end_epoch):
-
         print(f"\nEpoch {epoch + 1}/{end_epoch}")
 
         model.train()
@@ -137,6 +138,9 @@ def run(config):
         all_labels = []
 
         with torch.no_grad():
+            start_time = time.perf_counter()
+            tracemalloc.start()
+
 
             for windows, labels in validation_loader:
                 windows = windows.to(device)
@@ -149,18 +153,26 @@ def run(config):
                 predictions = torch.argmax(outputs, dim=1)
                 all_predictions.extend(predictions.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
+            
+            end_time = time.perf_counter()
+            current, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
 
         average_validation_loss = validation_loss / len(validation_loader)
 
         # Calculate metrics
         accuracy = skm.accuracy_score(all_labels, all_predictions)
-        precision = skm.precision_score(all_labels, all_predictions, average="macro")
-        recall = skm.recall_score(all_labels, all_predictions, average="macro")
+        # precision = skm.precision_score(all_labels, all_predictions, average="macro")
+        # recall = skm.recall_score(all_labels, all_predictions, average="macro")
         f1 = skm.f1_score(all_labels, all_predictions, average="macro")
+        time_elapsed = end_time - start_time
 
         print(f"Validation Loss = {average_validation_loss:.4f}")
         print(f"Accuracy = {accuracy:.4f}")
         print(f"F1 Score = {f1:.4f}")
+        print(f"Time elapsed = {time_elapsed}")
+        print(f"Current memory: {current / 10**6:.2f} MB")
+        print(f"Peak memory: {peak / 10**6:.2f} MB")
 
         # Change best f1 if needed
         if f1 > best_f1:
