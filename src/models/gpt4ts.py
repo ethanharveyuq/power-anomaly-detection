@@ -25,7 +25,7 @@ class gpt4ts(nn.Module):
         self.seq_len = data.max_seq_len
         self.max_len = data.max_seq_len
         self.patch_size = config['patch_size']
-        self.stride = config['stride']
+        self.stride = config['patch stride']
         self.gpt_layers = 6
         self.feat_dim = data.feature_df.shape[1]
         self.num_classes = len(data.class_names)

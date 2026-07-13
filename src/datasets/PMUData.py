@@ -191,6 +191,8 @@ class PMUData(BaseData):
     def process_all_files(self, root_dir: str) -> None:
         """
         Iterates through all files in directory, loads, processes, makes windows
+        TODO currently relies on file sort order (names being in the same order) for correct labels
+        when creating train and validate etc data, which works right now but is fragile
         """
         
         labels = []

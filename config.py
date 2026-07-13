@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--patch-size", type=int, default=10)
     parser.add_argument("--d-model", type=int, default=768)
     parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--patch-stride", type=int, default=10)
 
     # Might use later
     parser.add_argument("--test-only", action="store_true")
@@ -64,7 +65,8 @@ def create_config(args: argparse.Namespace) -> dict:
         "d_model": args.d_model,
         "dropout": args.dropout,
         "test only": args.test_only,
-        "resume": args.resume
+        "resume": args.resume,
+        "patch stride": args.patch_stride
     }
 
     return config

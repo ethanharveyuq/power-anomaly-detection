@@ -88,7 +88,7 @@ def run(config):
     # Resume training from last model
     if config["resume"] and os.path.exists("checkpoint.pt"):
 
-        checkpoint = torch.load("checkpoint.pt", map_location=device)
+        checkpoint = torch.load("checkpoint.pt", map_location=device, weights_only=False)
 
         model.load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
@@ -102,12 +102,15 @@ def run(config):
 
     end_epoch = start_epoch + config["epochs per run"]
 
+
     for epoch in range(start_epoch, end_epoch):
         print(f"\nEpoch {epoch + 1}/{end_epoch}")
 
         model.train()
 
         running_loss = 0.0
+        train_correct = 0
+        train_total = 0
 
         for windows, labels in train_loader:
             # Move tensors onto CPU/GPU
@@ -115,19 +118,22 @@ def run(config):
             labels = labels.to(device)
             # Clear previous gradients
             optimizer.zero_grad()
-            # Forward pass through GPT4TS
             outputs = model(windows)
-            # Compute loss
+            # loss
             loss = criterion(outputs, labels)
-            # Compute gradients
+            # gradients
             loss.backward()
-            # Update model parameters
             optimizer.step()
-            # Statistics
             running_loss += loss.item()
+            
+            # get Training accuracy
+            predictions = torch.argmax(outputs, dim=1).detach()
+            train_correct += (predictions == labels).sum().item()
+            train_total += labels.size(0)
 
         average_train_loss = running_loss / len(train_loader)
-
+        train_accuracy = train_correct / train_total
+        print(f"Training Accuracy = {train_accuracy:.4f}")
         print(f"Training Loss = {average_train_loss:.4f}")
 
         model.eval()
