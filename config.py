@@ -29,6 +29,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--resume", action="store_true", help="Resume training after a checkpoint")
 
+    # Smaller experiment set?
+    parser.add_argument("--experiment", action="store_true")
+
 
     # GPT4TS
     parser.add_argument("--patch-size", type=int, default=10)
@@ -46,17 +49,28 @@ def create_config(args: argparse.Namespace) -> dict:
     """
     Creates dict from parser args
     """
-    pmus = ["Bd18850", "Bg088", "Bg105", "Bg108", "Bg142"]
-    pmu_pattern = "|".join(map(re.escape, pmus))
+
+    if args.experiment:
+        # Smaller subset
+        pmus = ["Bd18850", "Bg088", "Bg105", "Bg108", "Bg142"]
+        pmu_pattern = "|".join(map(re.escape, pmus))
+        train_pattern = re.compile(rf"^({pmu_pattern}).*00\.csv$")
+        validation_pattern = re.compile(rf"^({pmu_pattern}).*01\.csv$")
+        test_pattern = re.compile(rf"^({pmu_pattern}).*02\.csv$")
+    else:
+        train_pattern = re.compile(r"^.*00\.csv$")
+        validation_pattern = re.compile(r"^.*01\.csv$")
+        test_pattern = re.compile(r"^.*02\.csv$")
+
     
 
     config = {
         "train data": args.data_dir,
-        "train pattern": re.compile(rf"^({pmu_pattern}).*00\.csv$"),
+        "train pattern": train_pattern,
         "validation data": args.data_dir,
-        "validation pattern": re.compile(rf"^({pmu_pattern}).*01\.csv$"),
+        "validation pattern": validation_pattern,
         "test data": args.data_dir,
-        "test pattern": re.compile(rf"^({pmu_pattern}).*02\.csv$"),
+        "test pattern": test_pattern,
         "window length": args.window_length,
         "stride": args.stride,
         "columns": args.columns,
@@ -70,7 +84,8 @@ def create_config(args: argparse.Namespace) -> dict:
         "dropout": args.dropout,
         "test only": args.test_only,
         "resume": args.resume,
-        "patch stride": args.patch_stride
+        "patch stride": args.patch_stride,
+        "experiment": args.experiment
     }
 
     return config

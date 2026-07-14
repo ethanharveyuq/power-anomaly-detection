@@ -29,56 +29,56 @@ def run(config):
 
     # Load Data
     print("Loading training data...")
-    train_data = PMUData(config['train data'], config['train pattern'], config)
-    #print("Loading validation data...")
-    #validation_data = PMUData(config['validation data'], config['validation pattern'], config)
-    #print("Loading testing data")
-    #test_data = PMUData(config['test data'], config['test pattern'], config)
+    if config["experiment"]: 
+        train_data = PMUData(config['train data'], config['train pattern'], config)
+        train_dataset = PMUDataset(train_data)
+        labels = train_dataset.labels_df['Label'].values
+        # Subset of data
+        per_class_cap = 20 # can change
 
-    # create PMUDataset object wrappers
-    train_dataset = PMUDataset(train_data)
-    #validation_dataset = PMUDataset(validation_data)
-    #test_dataset = PMUDataset(test_data)
+        selected_indices = []
+        for cls in np.unique(labels):
+            cls_indices = np.where(labels == cls)[0]
+            selected_indices.extend(cls_indices[:per_class_cap].tolist())
 
+        overfit_dataset = Subset(train_dataset, selected_indices)
+        overfit_loader = DataLoader(overfit_dataset, batch_size=32, shuffle=True)
+    else:
+        train_data = PMUData(config['train data'], config['train pattern'], config)
+        print("Loading validation data...")
+        validation_data = PMUData(config['validation data'], config['validation pattern'], config)
+        print("Loading testing data")
+        test_data = PMUData(config['test data'], config['test pattern'], config)
 
-    # Creating smaller set and loader for testing
+        # create PMUDataset object wrappers
+        train_dataset = PMUDataset(train_data) 
+        validation_dataset = PMUDataset(validation_data)
+        test_dataset = PMUDataset(test_data)
+    
+        #Create Dataloaders (create mini batches)
+        train_loader = DataLoader(
+        dataset=train_dataset, 
+        batch_size=config['batch size'],      # Group data into chunks of 32
+        shuffle=True,       # Mix up data order every epoch
+        num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
+        pin_memory=True     # Speed up data copy to GPU memory
+        )
 
-    labels = train_dataset.labels_df['Label'].values
-    per_class_cap = 20 # can change
+        validation_loader = DataLoader(
+        dataset=validation_dataset, 
+        batch_size=config['batch size'],      
+        shuffle=True,       
+        num_workers=2,      
+        pin_memory=True     
+        )
 
-    selected_indices = []
-    for cls in np.unique(labels):
-        cls_indices = np.where(labels == cls)[0]
-        selected_indices.extend(cls_indices[:per_class_cap].tolist())
-
-    overfit_dataset = Subset(train_dataset, selected_indices)
-    overfit_loader = DataLoader(overfit_dataset, batch_size=32, shuffle=True)
-
-
-    # Create Dataloaders (create mini batches)
-    #train_loader = DataLoader(
-    #dataset=train_dataset, 
-    #batch_size=config['batch size'],      # Group data into chunks of 32
-    #shuffle=True,       # Mix up data order every epoch
-    #num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
-    #pin_memory=True     # Speed up data copy to GPU memory
-    #)
-
-    #validation_loader = DataLoader(
-    #dataset=validation_dataset, 
-    #batch_size=config['batch size'],      
-    #shuffle=True,       
-    #num_workers=2,      
-    #pin_memory=True     
-    #)
-
-    #test_loader = DataLoader(
-    #dataset=test_dataset, 
-    #batch_size=config['batch size'],      
-    #shuffle=True,       
-    #num_workers=2,      
-    #pin_memory=True
-    #)
+        test_loader = DataLoader(
+        dataset=test_dataset, 
+        batch_size=config['batch size'],      
+        shuffle=True,       
+        num_workers=2,      
+        pin_memory=True
+        )
 
     # Create GPT4TS model
     print("Initialising LLM Model...")
@@ -110,157 +110,161 @@ def run(config):
     criterion = nn.CrossEntropyLoss() # for classification
 
 
-    # Testing loop
-    for step in range(1600):
-        correct, total, total_loss = 0, 0, 0.0
-        for windows, labels in overfit_loader:
-            windows, labels = windows.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(windows)
-            loss = criterion(outputs, labels)
-            loss.backward()
-
-            # Check params:
-            """
-            for name, param in model.named_parameters():
-                if param.requires_grad and param.grad is not None:
-                    print(name, param.grad.norm().item())
-                elif param.requires_grad and param.grad is None:
-                    print(name, "NO GRAD — problem")
-            """
-
-            optimizer.step()
-
-            total_loss += loss.item()
-            preds = torch.argmax(outputs, dim=1)
-            correct += (preds == labels).sum().item()
-            total += labels.size(0)
-
-        if step % 10 == 0:
-            print(f"step {step}: loss={total_loss/len(overfit_loader):.4f} acc={correct/total:.4f}")
-
-    """
-    # Training loop
-    print("Beginning training...")
-    best_f1 = 0.0
-    start_epoch = 0
-
-    # Resume training from last model
-    if config["resume"] and os.path.exists("checkpoint.pt"):
-
-        checkpoint = torch.load("checkpoint.pt", map_location=device, weights_only=False)
-
-        model.load_state_dict(checkpoint["model"])
-        optimizer.load_state_dict(checkpoint["optimizer"])
-
-        start_epoch = checkpoint["epoch"] + 1
-        best_f1 = checkpoint["best_f1"]
-
-        print(f"Resuming from epoch {start_epoch}")
-    else:
-        print("No checkpoint found. Starting new training run.")
-
-    end_epoch = start_epoch + config["epochs per run"]
-
-
-    for epoch in range(start_epoch, end_epoch):
-        print(f"\nEpoch {epoch + 1}/{end_epoch}")
-
-        model.train()
-
-        running_loss = 0.0
-        train_correct = 0
-        train_total = 0
-
-        for windows, labels in train_loader:
-            # Move tensors onto CPU/GPU
-            windows = windows.to(device)
-            labels = labels.to(device)
-            # Clear previous gradients
-            optimizer.zero_grad()
-            outputs = model(windows)
-            # loss
-            loss = criterion(outputs, labels)
-            # gradients
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-            
-            # get Training accuracy
-            predictions = torch.argmax(outputs, dim=1).detach()
-            train_correct += (predictions == labels).sum().item()
-            train_total += labels.size(0)
-
-        average_train_loss = running_loss / len(train_loader)
-        train_accuracy = train_correct / train_total
-        print(f"Training Accuracy = {train_accuracy:.4f}")
-        print(f"Training Loss = {average_train_loss:.4f}")
-
-        model.eval()
-
-        validation_loss = 0.0
-
-        all_predictions = []
-        all_labels = []
-
-        with torch.no_grad():
-            start_time = time.perf_counter()
-            tracemalloc.start()
-
-
-            for windows, labels in validation_loader:
-                windows = windows.to(device)
-                labels = labels.to(device)
+    # experiment loop
+    if config["experiment"]:
+        print("Beginning experimental training")
+        for step in range(1600):
+            correct, total, total_loss = 0, 0, 0.0
+            for windows, labels in overfit_loader:
+                windows, labels = windows.to(device), labels.to(device)
+                optimizer.zero_grad()
                 outputs = model(windows)
                 loss = criterion(outputs, labels)
-                validation_loss += loss.item()
+                loss.backward()
 
-                # Predicted class
-                predictions = torch.argmax(outputs, dim=1)
-                all_predictions.extend(predictions.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
-            
-            end_time = time.perf_counter()
-            current, peak = tracemalloc.get_traced_memory()
-            tracemalloc.stop()
+                # Check params:
+                """
+                for name, param in model.named_parameters():
+                    if param.requires_grad and param.grad is not None:
+                        print(name, param.grad.norm().item())
+                    elif param.requires_grad and param.grad is None:
+                        print(name, "NO GRAD — problem")
+                """
 
-        average_validation_loss = validation_loss / len(validation_loader)
+                optimizer.step()
 
-        # Calculate metrics
-        accuracy = skm.accuracy_score(all_labels, all_predictions)
-        # precision = skm.precision_score(all_labels, all_predictions, average="macro")
-        # recall = skm.recall_score(all_labels, all_predictions, average="macro")
-        f1 = skm.f1_score(all_labels, all_predictions, average="macro")
-        time_elapsed = end_time - start_time
+                total_loss += loss.item()
+                preds = torch.argmax(outputs, dim=1)
+                correct += (preds == labels).sum().item()
+                total += labels.size(0)
 
-        print(Counter(all_predictions).most_common(10))
-        print(f"Validation Loss = {average_validation_loss:.4f}")
-        print(f"Accuracy = {accuracy:.4f}")
-        print(f"F1 Score = {f1:.4f}")
-        print(f"Time elapsed = {time_elapsed}")
-        print(f"Current memory: {current / 10**6:.2f} MB")
-        print(f"Peak memory: {peak / 10**6:.2f} MB")
+            if step % 10 == 0:
+                print(f"step {step}: loss={total_loss/len(overfit_loader):.4f} acc={correct/total:.4f}")
 
-        # Change best f1 if needed
-        if f1 > best_f1:
-            best_f1 = f1
-            torch.save(model.state_dict(), "best_model.pt")
-            print("New best model saved.")
 
-        # save last model
-        torch.save({
-            "epoch": epoch,
-            "model": model.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            "best_f1": best_f1,
-            "config": config
-        }, "checkpoint.pt")
+    else:
+
+        # Proper training loop
+        print("Beginning training...")
+        best_f1 = 0.0
+        start_epoch = 0
+
+        # Resume training from last model
+        if config["resume"] and os.path.exists("checkpoint.pt"):
+
+            checkpoint = torch.load("checkpoint.pt", map_location=device, weights_only=False)
+
+            model.load_state_dict(checkpoint["model"])
+            optimizer.load_state_dict(checkpoint["optimizer"])
+
+            start_epoch = checkpoint["epoch"] + 1
+            best_f1 = checkpoint["best_f1"]
+
+            print(f"Resuming from epoch {start_epoch}")
+        else:
+            print("No checkpoint found. Starting new training run.")
+
+        end_epoch = start_epoch + config["epochs per run"]
+
+
+        for epoch in range(start_epoch, end_epoch):
+            print(f"\nEpoch {epoch + 1}/{end_epoch}")
+
+            model.train()
+
+            running_loss = 0.0
+            train_correct = 0
+            train_total = 0
+
+            for windows, labels in train_loader:
+                # Move tensors onto CPU/GPU
+                windows = windows.to(device)
+                labels = labels.to(device)
+                # Clear previous gradients
+                optimizer.zero_grad()
+                outputs = model(windows)
+                # loss
+                loss = criterion(outputs, labels)
+                # gradients
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+                
+                # get Training accuracy
+                predictions = torch.argmax(outputs, dim=1).detach()
+                train_correct += (predictions == labels).sum().item()
+                train_total += labels.size(0)
+
+            average_train_loss = running_loss / len(train_loader)
+            train_accuracy = train_correct / train_total
+            print(f"Training Accuracy = {train_accuracy:.4f}")
+            print(f"Training Loss = {average_train_loss:.4f}")
+
+            model.eval()
+
+            validation_loss = 0.0
+
+            all_predictions = []
+            all_labels = []
+
+            with torch.no_grad():
+                start_time = time.perf_counter()
+                tracemalloc.start()
+
+
+                for windows, labels in validation_loader:
+                    windows = windows.to(device)
+                    labels = labels.to(device)
+                    outputs = model(windows)
+                    loss = criterion(outputs, labels)
+                    validation_loss += loss.item()
+
+                    # Predicted class
+                    predictions = torch.argmax(outputs, dim=1)
+                    all_predictions.extend(predictions.cpu().numpy())
+                    all_labels.extend(labels.cpu().numpy())
+                
+                end_time = time.perf_counter()
+                current, peak = tracemalloc.get_traced_memory()
+                tracemalloc.stop()
+
+            average_validation_loss = validation_loss / len(validation_loader)
+
+            # Calculate metrics
+            accuracy = skm.accuracy_score(all_labels, all_predictions)
+            # precision = skm.precision_score(all_labels, all_predictions, average="macro")
+            # recall = skm.recall_score(all_labels, all_predictions, average="macro")
+            f1 = skm.f1_score(all_labels, all_predictions, average="macro")
+            time_elapsed = end_time - start_time
+
+            print(Counter(all_predictions).most_common(10))
+            print(f"Validation Loss = {average_validation_loss:.4f}")
+            print(f"Accuracy = {accuracy:.4f}")
+            print(f"F1 Score = {f1:.4f}")
+            print(f"Time elapsed = {time_elapsed}")
+            print(f"Current memory: {current / 10**6:.2f} MB")
+            print(f"Peak memory: {peak / 10**6:.2f} MB")
+
+            # Change best f1 if needed
+            if f1 > best_f1:
+                best_f1 = f1
+                torch.save(model.state_dict(), "best_model.pt")
+                print("New best model saved.")
+
+            # save last model
+            torch.save({
+                "epoch": epoch,
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "best_f1": best_f1,
+                "config": config
+            }, "checkpoint.pt")
 
 
     # Reload best model
     model.load_state_dict(torch.load("best_model.pt"))
     model.eval()
-    """
+    
     """
     # Step 15: Final testing
     all_predictions = []
