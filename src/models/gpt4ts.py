@@ -35,7 +35,7 @@ class gpt4ts(nn.Module):
 
         self.padding_patch_layer = nn.ReplicationPad1d((0, self.stride)) 
         self.patch_num += 1
-        self.enc_embedding = DataEmbedding(self.feat_dim * self.patch_size, config['d_model'], config['dropout'])
+        self.enc_embedding = DataEmbedding(self.feat_dim * self.patch_size, config['d_model'], dropout=config['dropout'])
 
         self.gpt2 = GPT2Model.from_pretrained('gpt2', output_attentions=True, output_hidden_states=True)
         self.gpt2.h = self.gpt2.h[:self.gpt_layers]

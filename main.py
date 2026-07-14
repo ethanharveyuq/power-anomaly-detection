@@ -84,41 +84,60 @@ def run(config):
     print("Initialising LLM Model...")
     model = gpt4ts(config, train_data)
     model.to(device)
+    print(f"Patch num: {model.patch_num}")
+    print(model.feat_dim * model.patch_size)
 
     # Initialise optimiser
-    decay, no_decay = [], []
+    backbone_params = []
+    head_params = []
+
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if 'bias' in name or 'ln' in name or 'LayerNorm' in name:
-            no_decay.append(param)
+        if name.startswith('gpt2.'):
+            backbone_params.append(param)
         else:
-            decay.append(param)
+            head_params.append(param)  # enc_embedding, ln_proj, out_layer
 
     optimizer = torch.optim.AdamW([
-        {'params': decay, 'weight_decay': 0.01},
-        {'params': no_decay, 'weight_decay': 0.0}
-    ], lr=config['learning rate'])
+        {'params': backbone_params, 'lr': 1e-5, 'weight_decay': 0.0},
+        {'params': head_params, 'lr': 1e-3, 'weight_decay': 0.0},
+    ])
+    for i, g in enumerate(optimizer.param_groups):
+        print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
 
     # Loss model
     criterion = nn.CrossEntropyLoss() # for classification
 
 
     # Testing loop
-    model.train()
-    for step in range(200):
+    for step in range(1600):
+        correct, total, total_loss = 0, 0, 0.0
         for windows, labels in overfit_loader:
             windows, labels = windows.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(windows)
             loss = criterion(outputs, labels)
             loss.backward()
+
+            # Check params:
+            """
+            for name, param in model.named_parameters():
+                if param.requires_grad and param.grad is not None:
+                    print(name, param.grad.norm().item())
+                elif param.requires_grad and param.grad is None:
+                    print(name, "NO GRAD — problem")
+            """
+
             optimizer.step()
 
-        if step % 10 == 0:
+            total_loss += loss.item()
             preds = torch.argmax(outputs, dim=1)
-            acc = (preds == labels).float().mean().item()
-            print(f"step {step}: loss={loss.item():.4f} batch_acc={acc:.4f}")
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
+
+        if step % 10 == 0:
+            print(f"step {step}: loss={total_loss/len(overfit_loader):.4f} acc={correct/total:.4f}")
 
     """
     # Training loop
