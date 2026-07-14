@@ -24,8 +24,12 @@ def run(config):
     np.random.seed(config['seed'])
     random.seed(config['seed'])
 
-    # Select device (CPU, GPU) TODO add cuda when operating on PC
-    device = torch.device('cpu')
+    # Select device (CPU, GPU)
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+    print(device)
 
     # Load Data
     print("Loading training data...")

@@ -1,1 +1,4 @@
 data/
+.venv/
+.venv311/
+*.pt
