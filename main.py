@@ -2,6 +2,7 @@ from src.datasets.PMUData import PMUData
 from src.datasets.dataset import PMUDataset
 from src.models.gpt4ts import gpt4ts
 from config import parse_args, create_config
+from collections import Counter
 import sklearn.metrics as skm
 import torch
 import torch.nn as nn
@@ -69,12 +70,20 @@ def run(config):
     model = gpt4ts(config, train_data)
     model.to(device)
 
-    # Initialise ptimiser
-    optimizer = torch.optim.AdamW(
-    model.parameters(),
-    lr=config["learning rate"],
-    weight_decay=0.01
-    )
+    # Initialise optimiser
+    decay, no_decay = [], []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        if 'bias' in name or 'ln' in name or 'LayerNorm' in name:
+            no_decay.append(param)
+        else:
+            decay.append(param)
+
+    optimizer = torch.optim.AdamW([
+        {'params': decay, 'weight_decay': 0.01},
+        {'params': no_decay, 'weight_decay': 0.0}
+    ], lr=config['learning rate'])
 
     # Loss model
     criterion = nn.CrossEntropyLoss() # for classification
@@ -173,6 +182,7 @@ def run(config):
         f1 = skm.f1_score(all_labels, all_predictions, average="macro")
         time_elapsed = end_time - start_time
 
+        print(Counter(all_predictions).most_common(10))
         print(f"Validation Loss = {average_validation_loss:.4f}")
         print(f"Accuracy = {accuracy:.4f}")
         print(f"F1 Score = {f1:.4f}")

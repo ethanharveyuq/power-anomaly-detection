@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--gpu", type=int, default=0)
-    parser.add_argument("--resume", type=bool, default=1)
+    parser.add_argument("--resume", action="store_true", help="Resume training after a checkpoint")
 
 
     # GPT4TS

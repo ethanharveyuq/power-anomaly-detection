@@ -7,11 +7,10 @@ python3 main.py \
     --columns FREQ \
     --batch-size 32 \
     --epochs-per-run 20 \
-    --learning-rate 1e-4 \
+    --learning-rate 1e-3 \
     --seed 42 \
     --gpu 0 \
     --patch-size 10 \
     --d-model 768 \
     --dropout 0.1 \
-    --resume 0 \
     --patch-stride 10
