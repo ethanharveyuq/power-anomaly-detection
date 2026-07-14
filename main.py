@@ -6,7 +6,7 @@ from collections import Counter
 import sklearn.metrics as skm
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, Subset, TensorDataset
 import numpy as np
 import random
 import re
@@ -30,32 +30,47 @@ def run(config):
     # Load Data
     print("Loading training data...")
     train_data = PMUData(config['train data'], config['train pattern'], config)
-    print("Loading validation data...")
-    validation_data = PMUData(config['validation data'], config['validation pattern'], config)
+    #print("Loading validation data...")
+    #validation_data = PMUData(config['validation data'], config['validation pattern'], config)
     #print("Loading testing data")
     #test_data = PMUData(config['test data'], config['test pattern'], config)
 
     # create PMUDataset object wrappers
     train_dataset = PMUDataset(train_data)
-    validation_dataset = PMUDataset(validation_data)
+    #validation_dataset = PMUDataset(validation_data)
     #test_dataset = PMUDataset(test_data)
 
-    # Create Dataloaders (create mini batches)
-    train_loader = DataLoader(
-    dataset=train_dataset, 
-    batch_size=config['batch size'],      # Group data into chunks of 32
-    shuffle=True,       # Mix up data order every epoch
-    num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
-    pin_memory=True     # Speed up data copy to GPU memory
-    )
 
-    validation_loader = DataLoader(
-    dataset=validation_dataset, 
-    batch_size=config['batch size'],      
-    shuffle=True,       
-    num_workers=2,      
-    pin_memory=True     
-    )
+    # Creating smaller set and loader for testing
+
+    labels = train_dataset.labels_df['Label'].values
+    per_class_cap = 20 # can change
+
+    selected_indices = []
+    for cls in np.unique(labels):
+        cls_indices = np.where(labels == cls)[0]
+        selected_indices.extend(cls_indices[:per_class_cap].tolist())
+
+    overfit_dataset = Subset(train_dataset, selected_indices)
+    overfit_loader = DataLoader(overfit_dataset, batch_size=32, shuffle=True)
+
+
+    # Create Dataloaders (create mini batches)
+    #train_loader = DataLoader(
+    #dataset=train_dataset, 
+    #batch_size=config['batch size'],      # Group data into chunks of 32
+    #shuffle=True,       # Mix up data order every epoch
+    #num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
+    #pin_memory=True     # Speed up data copy to GPU memory
+    #)
+
+    #validation_loader = DataLoader(
+    #dataset=validation_dataset, 
+    #batch_size=config['batch size'],      
+    #shuffle=True,       
+    #num_workers=2,      
+    #pin_memory=True     
+    #)
 
     #test_loader = DataLoader(
     #dataset=test_dataset, 
@@ -88,7 +103,24 @@ def run(config):
     # Loss model
     criterion = nn.CrossEntropyLoss() # for classification
 
-    
+
+    # Testing loop
+    model.train()
+    for step in range(200):
+        for windows, labels in overfit_loader:
+            windows, labels = windows.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(windows)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+        if step % 10 == 0:
+            preds = torch.argmax(outputs, dim=1)
+            acc = (preds == labels).float().mean().item()
+            print(f"step {step}: loss={loss.item():.4f} batch_acc={acc:.4f}")
+
+    """
     # Training loop
     print("Beginning training...")
     best_f1 = 0.0
@@ -209,7 +241,7 @@ def run(config):
     # Reload best model
     model.load_state_dict(torch.load("best_model.pt"))
     model.eval()
-
+    """
     """
     # Step 15: Final testing
     all_predictions = []

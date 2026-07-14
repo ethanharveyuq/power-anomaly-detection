@@ -46,13 +46,17 @@ def create_config(args: argparse.Namespace) -> dict:
     """
     Creates dict from parser args
     """
+    pmus = ["Bd18850", "Bg088", "Bg105", "Bg108", "Bg142"]
+    pmu_pattern = "|".join(map(re.escape, pmus))
+    
+
     config = {
         "train data": args.data_dir,
-        "train pattern": re.compile(r"^.*00\.csv$"),
+        "train pattern": re.compile(rf"^({pmu_pattern}).*00\.csv$"),
         "validation data": args.data_dir,
-        "validation pattern": re.compile(r"^.*01\.csv$"),
+        "validation pattern": re.compile(rf"^({pmu_pattern}).*01\.csv$"),
         "test data": args.data_dir,
-        "test pattern": re.compile(r"^.*02\.csv$"),
+        "test pattern": re.compile(rf"^({pmu_pattern}).*02\.csv$"),
         "window length": args.window_length,
         "stride": args.stride,
         "columns": args.columns,
