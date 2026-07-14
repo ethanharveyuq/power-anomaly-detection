@@ -212,6 +212,8 @@ class PMUData(BaseData):
                 df = self.load_single_file(file_path, pmu_name.upper())
                 # clean df
                 df = self.clean_dataframe(df)
+                # normalise data
+                df = self.normalise_data(df)
 
                 # iterate over all segments and make windows
                 for _, segment_df in df.groupby("segment_id"):
@@ -235,8 +237,6 @@ class PMUData(BaseData):
         self.feature_df = self.feature_df.set_index('WindowID')
         self.labels_df = pd.DataFrame(labels, columns=['Label']) # could switch label to file or pmuid?
         self.labels_df.index.name = 'WindowID'
-
-
         
     def load_single_file(self, file_path: str, pmu_name: str) -> pd.DataFrame:
         """
@@ -293,3 +293,10 @@ class PMUData(BaseData):
             win_idx += 1
         
         return windows, win_idx
+
+    
+    def normalise_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        """
+        df["FREQ"] = (df["FREQ"] - 50.0) / 0.05
+        return df
