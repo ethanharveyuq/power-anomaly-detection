@@ -14,4 +14,6 @@ python3 main.py \
     --patch-size 10 \
     --d-model 768 \
     --dropout 0.1 \
-    --patch-stride 10
+    --patch-stride 10 \
+    --resume \
+    --patience 30

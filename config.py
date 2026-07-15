@@ -29,6 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--resume", action="store_true", help="Resume training after a checkpoint")
+    parser.add_argument("--patience", type=int, default=30)
 
     # Smaller experiment set?
     parser.add_argument("--experiment", action="store_true")
@@ -87,7 +88,8 @@ def create_config(args: argparse.Namespace) -> dict:
         "patch stride": args.patch_stride,
         "experiment": args.experiment,
         "head learning rate": args.head_learning_rate,
-        "backbone learning rate": args.backbone_learning_rate
+        "backbone learning rate": args.backbone_learning_rate,
+        "patience": args.patience
     }
 
     return config
