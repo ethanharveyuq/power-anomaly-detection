@@ -77,7 +77,6 @@ def create_config(args: argparse.Namespace) -> dict:
         "columns": args.columns,
         "batch size": args.batch_size,
         "epochs per run": args.epochs_per_run,
-        "learning rate": args.learning_rate,
         "seed": args.seed,
         "gpu": args.gpu,
         "patch_size": args.patch_size,

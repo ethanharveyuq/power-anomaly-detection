@@ -20,7 +20,6 @@ def run(config):
     """
     """
     # Create seeds
-
     torch.manual_seed(config['seed'])
     np.random.seed(config['seed'])
     random.seed(config['seed'])
@@ -30,7 +29,7 @@ def run(config):
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-    print(device)
+    print(f"Device: {device}")
 
     # Load Data
     print("Loading training data...")
@@ -304,7 +303,7 @@ def run(config):
     model.eval()
     
     """
-    # Step 15: Final testing
+    # Final testing
     all_predictions = []
     all_labels = []
 

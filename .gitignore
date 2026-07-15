@@ -2,3 +2,4 @@ data/
 .venv/
 .venv311/
 *.pt
+*.cpython-313.pyc
