@@ -6,11 +6,10 @@ from collections import Counter
 import sklearn.metrics as skm
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Subset, TensorDataset
+from torch.utils.data import DataLoader, Subset
 import numpy as np
 import pandas as pd
 import random
-import re
 import os
 import time
 import tracemalloc
@@ -131,7 +130,7 @@ def run(config):
     # experiment loop
     if config["experiment"]:
         print("Beginning experimental training")
-        for step in range(1600):
+        for step in range(800):
             correct, total, total_loss = 0, 0, 0.0
             for windows, labels in overfit_loader:
                 windows, labels = windows.to(device), labels.to(device)
@@ -140,14 +139,6 @@ def run(config):
                 loss = criterion(outputs, labels)
                 loss.backward()
 
-                # Check params:
-                """
-                for name, param in model.named_parameters():
-                    if param.requires_grad and param.grad is not None:
-                        print(name, param.grad.norm().item())
-                    elif param.requires_grad and param.grad is None:
-                        print(name, "NO GRAD — problem")
-                """
 
                 optimizer.step()
 
@@ -289,13 +280,14 @@ def run(config):
 
             # save last model
             torch.save({
-                "epoch": epoch,
-                "model": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "best_f1": best_f1,
-                "training_data": training_data,
-                "config": config
-            }, "checkpoint.pt")
+            "epoch": epoch,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "best_f1": best_f1,
+            "training_data": training_data,
+            "config": config
+        }, "checkpoint.pt.tmp") # write to a tmp file then replace
+        os.replace("checkpoint.pt.tmp", "checkpoint.pt")
 
 
     # Reload best model

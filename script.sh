@@ -6,7 +6,7 @@ python3 main.py \
     --stride 250 \
     --columns FREQ \
     --batch-size 32 \
-    --epochs-per-run 20 \
+    --epochs-per-run 100 \
     --head-learning-rate 1e-3 \
     --backbone-learning-rate 1e-5 \
     --seed 42 \
