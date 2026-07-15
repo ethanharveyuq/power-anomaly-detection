@@ -59,6 +59,7 @@ class gpt4ts(nn.Module):
         self.ln_proj = nn.LayerNorm(config['d_model'] * self.patch_num)
         
         self.ln_proj = nn.LayerNorm(config['d_model'] * self.patch_num)
+        self.head_dropout = nn.Dropout(config['dropout'])
         self.out_layer = nn.Linear(config['d_model'] * self.patch_num, self.num_classes)
     
     # Changed func definition to have default none value
@@ -76,6 +77,7 @@ class gpt4ts(nn.Module):
 
         outputs = self.act(outputs).reshape(B, -1)
         outputs = self.ln_proj(outputs)
+        outputs = self.head_dropout(outputs)
         outputs = self.out_layer(outputs)
         
         return outputs

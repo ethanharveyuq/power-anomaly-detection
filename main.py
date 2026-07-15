@@ -185,7 +185,8 @@ def run(config):
 
         end_epoch = start_epoch + config["epochs per run"]
 
-
+        # Training loop
+        f1_no_improvement = 0
         for epoch in range(start_epoch, end_epoch):
             print(f"\nEpoch {epoch + 1}/{end_epoch}")
 
@@ -277,6 +278,12 @@ def run(config):
                 best_f1 = f1
                 torch.save(model.state_dict(), "best_model.pt")
                 print("New best model saved.")
+                f1_no_improvement = 0
+            else:
+                f1_no_improvement += 1
+                if f1_no_improvement >= 15: # 15 epochs of no improvement, stop training
+                    print("No improvement for 15 epochs. Stopping training.")
+                    break
 
             # save last model
             torch.save({

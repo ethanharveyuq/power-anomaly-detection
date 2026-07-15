@@ -3,7 +3,7 @@
 python3 main.py \
     --data-dir ./data \
     --window-length 500 \
-    --stride 250 \
+    --stride 400 \
     --columns FREQ \
     --batch-size 32 \
     --epochs-per-run 100 \
