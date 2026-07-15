@@ -7,7 +7,8 @@ python3 main.py \
     --columns FREQ \
     --batch-size 32 \
     --epochs-per-run 20 \
-    --learning-rate 1e-5 \
+    --head-learning-rate 1e-3 \
+    --backbone-learning-rate 1e-5 \
     --seed 42 \
     --gpu 0 \
     --patch-size 10 \

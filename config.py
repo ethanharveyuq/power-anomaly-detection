@@ -23,7 +23,8 @@ def parse_args() -> argparse.Namespace:
     # Training
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--epochs-per-run", type=int, default=20)
-    parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--head-learning-rate", type=float, default=1e-3)
+    parser.add_argument("--backbone-learning-rate", type=float, default=1e-5)
 
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--gpu", type=int, default=0)
@@ -85,7 +86,9 @@ def create_config(args: argparse.Namespace) -> dict:
         "test only": args.test_only,
         "resume": args.resume,
         "patch stride": args.patch_stride,
-        "experiment": args.experiment
+        "experiment": args.experiment,
+        "head learning rate": args.head_learning_rate,
+        "backbone learning rate": args.backbone_learning_rate
     }
 
     return config
