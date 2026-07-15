@@ -52,13 +52,13 @@ def run(config):
         train_data = PMUData(config['train data'], config['train pattern'], config)
         print("Loading validation data...")
         validation_data = PMUData(config['validation data'], config['validation pattern'], config)
-        print("Loading testing data")
-        test_data = PMUData(config['test data'], config['test pattern'], config)
+        #print("Loading testing data")
+        #test_data = PMUData(config['test data'], config['test pattern'], config)
 
         # create PMUDataset object wrappers
         train_dataset = PMUDataset(train_data) 
         validation_dataset = PMUDataset(validation_data)
-        test_dataset = PMUDataset(test_data)
+        #test_dataset = PMUDataset(test_data)
     
         #Create Dataloaders (create mini batches)
         train_loader = DataLoader(
@@ -69,6 +69,20 @@ def run(config):
         pin_memory=True     # Speed up data copy to GPU memory
         )
 
+        # Make validation set smaller samples to increase epoch speed
+        val_samples_per_class = 50 # can tune
+        val_labels = validation_dataset.labels_df['Label'].values
+        rng = np.random.default_rng(config['seed'])
+
+        selected_indices = []
+        for cls in np.unique(val_labels):
+            cls_indices = np.where(val_labels == cls)[0]
+            if len(cls_indices) > val_samples_per_class:
+                cls_indices = rng.choice(cls_indices, size=val_samples_per_class, replace=False)
+            selected_indices.extend(cls_indices.tolist())
+
+        validation_dataset = Subset(validation_dataset, selected_indices)
+
         validation_loader = DataLoader(
         dataset=validation_dataset, 
         batch_size=config['batch size'],      
@@ -77,13 +91,13 @@ def run(config):
         pin_memory=True     
         )
 
-        test_loader = DataLoader(
-        dataset=test_dataset, 
-        batch_size=config['batch size'],      
-        shuffle=True,       
-        num_workers=2,      
-        pin_memory=True
-        )
+        #test_loader = DataLoader(
+        #dataset=test_dataset, 
+        #batch_size=config['batch size'],      
+        #shuffle=True,       
+        #num_workers=2,      
+        #pin_memory=True
+        #)
 
     # Create GPT4TS model
     print("Initialising LLM Model...")
@@ -105,8 +119,8 @@ def run(config):
             head_params.append(param)  # enc_embedding, ln_proj, out_layer
 
     optimizer = torch.optim.AdamW([
-        {'params': backbone_params, 'lr': 1e-5, 'weight_decay': 0.0},
-        {'params': head_params, 'lr': 1e-3, 'weight_decay': 0.0},
+        {'params': backbone_params, 'lr': config["backbone learning rate"], 'weight_decay': 0.0},
+        {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': 0.01},
     ])
     for i, g in enumerate(optimizer.param_groups):
         print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
