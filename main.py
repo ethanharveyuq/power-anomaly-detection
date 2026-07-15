@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Subset, TensorDataset
 import numpy as np
+import pandas as pd
 import random
 import re
 import os
@@ -146,6 +147,16 @@ def run(config):
 
         # Proper training loop
         print("Beginning training...")
+        training_data = {
+            "training accuracy" : [],
+            "training loss" : [],
+            "validation accuracy" : [],
+            "validation f1" : [],
+            "validation loss" : [],
+            "time elapsed" : [],
+            "peak memory used": [],
+            "curr memory used": []
+        }
         best_f1 = 0.0
         start_epoch = 0
 
@@ -159,7 +170,7 @@ def run(config):
 
             start_epoch = checkpoint["epoch"] + 1
             best_f1 = checkpoint["best_f1"]
-
+            training_data = checkpoint["training_data"]
             print(f"Resuming from epoch {start_epoch}")
         else:
             print("No checkpoint found. Starting new training run.")
@@ -198,7 +209,9 @@ def run(config):
             average_train_loss = running_loss / len(train_loader)
             train_accuracy = train_correct / train_total
             print(f"Training Accuracy = {train_accuracy:.4f}")
+            training_data["training accuracy"].append(train_accuracy)
             print(f"Training Loss = {average_train_loss:.4f}")
+            training_data["training loss"].append(average_train_loss)
 
             model.eval()
 
@@ -236,6 +249,12 @@ def run(config):
             # recall = skm.recall_score(all_labels, all_predictions, average="macro")
             f1 = skm.f1_score(all_labels, all_predictions, average="macro")
             time_elapsed = end_time - start_time
+            training_data["validation accuracy"].append(accuracy)
+            training_data["validation f1"].append(f1)
+            training_data["validation loss"].append(average_validation_loss)
+            training_data["time elapsed"].append(time_elapsed)
+            training_data["peak memory used"].append(peak / 10**6)
+            training_data["curr memory used"].append(current / 10**6)
 
             print(Counter(all_predictions).most_common(10))
             print(f"Validation Loss = {average_validation_loss:.4f}")
@@ -257,6 +276,7 @@ def run(config):
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 "best_f1": best_f1,
+                "training_data": training_data,
                 "config": config
             }, "checkpoint.pt")
 
