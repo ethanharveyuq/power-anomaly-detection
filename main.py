@@ -2,7 +2,7 @@ from src.datasets.PMUData import PMUData
 from src.datasets.dataset import PMUDataset
 from src.models.gpt4ts import gpt4ts
 from config import parse_args, create_config
-from collections import Counter
+from collections import Counter, deque
 import sklearn.metrics as skm
 import torch
 import torch.nn as nn
@@ -187,6 +187,9 @@ def run(config):
 
         # Training loop
         f1_no_improvement = 0
+        f1_history = deque(maxlen=5)  # rolling window for smoothing
+        smoothed_best = 0.0
+        PATIENCE = 30  # break after 30 epochs of no improvement
         for epoch in range(start_epoch, end_epoch):
             print(f"\nEpoch {epoch + 1}/{end_epoch}")
 
@@ -273,16 +276,24 @@ def run(config):
             print(f"Current memory: {current / 10**6:.2f} MB")
             print(f"Peak memory: {peak / 10**6:.2f} MB")
 
+
+            f1_history.append(f1)
+            smoothed_f1 = sum(f1_history) / len(f1_history)
+
             # Change best f1 if needed
             if f1 > best_f1:
                 best_f1 = f1
                 torch.save(model.state_dict(), "best_model.pt")
                 print("New best model saved.")
+
+
+            if smoothed_f1 > smoothed_best:
+                smoothed_best = smoothed_f1
                 f1_no_improvement = 0
             else:
                 f1_no_improvement += 1
-                if f1_no_improvement >= 15: # 15 epochs of no improvement, stop training
-                    print("No improvement for 15 epochs. Stopping training.")
+                if f1_no_improvement >= PATIENCE: # patience epochs of no improvement, stop training
+                    print(f"No improvement for {PATIENCE} epochs. Stopping training.")
                     break
 
             # save last model
