@@ -42,8 +42,7 @@ def run(config):
         train_data = PMUData(config['train data'], config['train pattern'], config)
         train_dataset = PMUDataset(train_data)
         labels = train_dataset.labels_df['Label'].values
-        # Subset of data
-        per_class_cap = 20 # can change
+        per_class_cap = 20
 
         selected_indices = []
         for cls in np.unique(labels):
@@ -52,6 +51,21 @@ def run(config):
 
         overfit_dataset = Subset(train_dataset, selected_indices)
         overfit_loader = DataLoader(overfit_dataset, batch_size=32, shuffle=True)
+
+        # small validation slice for the experiment
+        print("Loading validation data...")
+        validation_data = PMUData(config['validation data'], config['validation pattern'], config)
+        validation_dataset = PMUDataset(validation_data)
+        val_labels = validation_dataset.labels_df['Label'].values
+        val_per_class_cap = 20  # keep small
+
+        val_selected_indices = []
+        for cls in np.unique(val_labels):
+            cls_indices = np.where(val_labels == cls)[0]
+            val_selected_indices.extend(cls_indices[:val_per_class_cap].tolist())
+
+        overfit_val_dataset = Subset(validation_dataset, val_selected_indices)
+        overfit_val_loader = DataLoader(overfit_val_dataset, batch_size=32, shuffle=False)
     else:
         train_data = PMUData(config['train data'], config['train pattern'], config)
         print("Loading validation data...")
@@ -124,7 +138,7 @@ def run(config):
 
     optimizer = torch.optim.AdamW([
         {'params': backbone_params, 'lr': config["backbone learning rate"], 'weight_decay': 0.0},
-        {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': 0.01}, # maybe change to 0.0
+        {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': 0.00}, # maybe change to 0.0
     ])
     for i, g in enumerate(optimizer.param_groups):
         print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
@@ -138,14 +152,13 @@ def run(config):
         print("Beginning experimental training")
         for step in range(800):
             correct, total, total_loss = 0, 0, 0.0
+            model.train()
             for windows, labels in overfit_loader:
                 windows, labels = windows.to(device), labels.to(device)
                 optimizer.zero_grad()
                 outputs = model(windows)
                 loss = criterion(outputs, labels)
                 loss.backward()
-
-
                 optimizer.step()
 
                 total_loss += loss.item()
@@ -154,7 +167,23 @@ def run(config):
                 total += labels.size(0)
 
             if step % 10 == 0:
-                print(f"step {step}: loss={total_loss/len(overfit_loader):.4f} acc={correct/total:.4f}")
+                model.eval()
+                val_correct, val_total, val_loss = 0, 0, 0.0
+                with torch.no_grad():
+                    for windows, labels in overfit_val_loader:
+                        windows, labels = windows.to(device), labels.to(device)
+                        outputs = model(windows)
+                        loss = criterion(outputs, labels)
+                        val_loss += loss.item()
+                        preds = torch.argmax(outputs, dim=1)
+                        val_correct += (preds == labels).sum().item()
+                        val_total += labels.size(0)
+                model.train()
+
+                print(f"step {step}: train_loss={total_loss/len(overfit_loader):.4f} "
+                    f"train_acc={correct/total:.4f} "
+                    f"val_loss={val_loss/len(overfit_val_loader):.4f} "
+                    f"val_acc={val_correct/val_total:.4f}")
 
 
     else:
@@ -196,7 +225,7 @@ def run(config):
         f1_history = deque(maxlen=5)  # rolling window for smoothing
         smoothed_best = 0.0
         PATIENCE = config["patience"]  # break after 30 epochs of no improvement
-        l2_lambda = 0.01 
+        l2_lambda = 0.005 
         for epoch in range(start_epoch, end_epoch):
             print(f"\nEpoch {epoch + 1}/{end_epoch}")
 
@@ -312,15 +341,15 @@ def run(config):
             "best_f1": best_f1,
             "training_data": training_data,
             "config": config
-        }, "checkpoint.pt.tmp") # write to a tmp file then replace
-        os.replace("checkpoint.pt.tmp", "checkpoint.pt")
+            }, "checkpoint.pt.tmp") # write to a tmp file then replace
+            os.replace("checkpoint.pt.tmp", "checkpoint.pt")
 
-
+    """
     # Reload best model
     model.load_state_dict(torch.load("best_model.pt"))
     model.eval()
     
-    """
+    
     # Final testing
     all_predictions = []
     all_labels = []

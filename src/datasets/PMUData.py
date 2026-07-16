@@ -33,7 +33,7 @@ CURRENT_COLS  = [
 DATA_COLS = VOLTAGE_COLS + SECONDARY_VOLTAGE_COLS + CURRENT_COLS + [FREQ_COL]
 
 SAMPLE_PERIOD_MS = 20
-MAX_INTERP_GAP   = 500  # 10 seconds (500 samples)
+MAX_INTERP_GAP   = 20  # 0.4 seconds (20 samples)
 MAX_FLAG = 1000 # Based om observed data not IEEE spec, FLAG is a bitwise FLAG rather than a latency value, however 1000 should be suitable
 
 def simplify_column(col: str) -> str:
