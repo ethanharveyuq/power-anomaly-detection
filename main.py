@@ -14,6 +14,12 @@ import os
 import time
 import tracemalloc
 
+# from GPT4TS
+def l2_reg_loss(model):
+    for name, param in model.named_parameters():
+        if name == 'out_layer.weight':  # match YOUR layer's actual name
+            return torch.sum(torch.square(param))
+
     
 def run(config):
     """
@@ -118,13 +124,13 @@ def run(config):
 
     optimizer = torch.optim.AdamW([
         {'params': backbone_params, 'lr': config["backbone learning rate"], 'weight_decay': 0.0},
-        {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': 0.01},
+        {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': 0.01}, # maybe change to 0.0
     ])
     for i, g in enumerate(optimizer.param_groups):
         print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
 
     # Loss model
-    criterion = nn.CrossEntropyLoss() # for classification
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # for classification, 0.1 prevents over confidence
 
 
     # experiment loop
@@ -189,7 +195,8 @@ def run(config):
         f1_no_improvement = 0
         f1_history = deque(maxlen=5)  # rolling window for smoothing
         smoothed_best = 0.0
-        PATIENCE = 30  # break after 30 epochs of no improvement
+        PATIENCE = config["patience"]  # break after 30 epochs of no improvement
+        l2_lambda = 0.01 
         for epoch in range(start_epoch, end_epoch):
             print(f"\nEpoch {epoch + 1}/{end_epoch}")
 
@@ -206,8 +213,8 @@ def run(config):
                 # Clear previous gradients
                 optimizer.zero_grad()
                 outputs = model(windows)
-                # loss
-                loss = criterion(outputs, labels)
+                # loss 
+                loss = criterion(outputs, labels) + l2_lambda * l2_reg_loss(model) # small amount of affect l2_loss
                 # gradients
                 loss.backward()
                 optimizer.step()
@@ -275,6 +282,7 @@ def run(config):
             print(f"Time elapsed = {time_elapsed}")
             print(f"Current memory: {current / 10**6:.2f} MB")
             print(f"Peak memory: {peak / 10**6:.2f} MB")
+            print(skm.classification_report(all_labels, all_predictions, zero_division=0))
 
 
             f1_history.append(f1)
