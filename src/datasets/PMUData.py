@@ -283,7 +283,7 @@ class PMUData(BaseData):
 
             # Extract window
             window_df = df.iloc[start : start + window_length]
-            feature_df = window_df[self.feature_names] # TODO check if keeps relative order
+            feature_df = window_df[self.feature_names]
             feature_df = feature_df.copy()
             feature_df["WindowID"] = win_idx
             windows.append(feature_df)
@@ -298,5 +298,11 @@ class PMUData(BaseData):
     def normalise_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         """
-        df["FREQ"] = (df["FREQ"] - 50.0) / 0.05
+        for col in self.feature_names:
+            if col in ["FREQ"]:
+                df[col] = (df[col] - 50.0) / 0.05
+            elif col.endswith(":ANG"):
+                df[col] = np.sin(np.deg2rad(df[col])) # take the sine of teh angle [-1,1]
+            elif col.endswith(":MAG"): # only voltage support for now
+                df[col] = (df[col] - 12000) / 500 # need to change as mean and ad different
         return df

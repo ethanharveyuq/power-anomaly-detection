@@ -54,7 +54,7 @@ def create_config(args: argparse.Namespace) -> dict:
 
     if args.experiment:
         # Smaller subset
-        pmus = ["Bd18850", "Bg088", "Bg105", "Bg108", "Bg142"]
+        pmus = ["Bd18850", "Wo160", "Le005", "Bg108", "Gb3302"]
         pmu_pattern = "|".join(map(re.escape, pmus))
         train_pattern = re.compile(rf"^({pmu_pattern}).*00\.csv$")
         validation_pattern = re.compile(rf"^({pmu_pattern}).*01\.csv$")

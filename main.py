@@ -42,7 +42,7 @@ def run(config):
         train_data = PMUData(config['train data'], config['train pattern'], config)
         train_dataset = PMUDataset(train_data)
         labels = train_dataset.labels_df['Label'].values
-        per_class_cap = 20
+        per_class_cap = 70
 
         selected_indices = []
         for cls in np.unique(labels):
@@ -146,7 +146,7 @@ def run(config):
     # Loss model
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # for classification, 0.1 prevents over confidence
 
-
+    l2_lambda = 0.005
     # experiment loop
     if config["experiment"]:
         print("Beginning experimental training")
@@ -157,7 +157,7 @@ def run(config):
                 windows, labels = windows.to(device), labels.to(device)
                 optimizer.zero_grad()
                 outputs = model(windows)
-                loss = criterion(outputs, labels)
+                loss = criterion(outputs, labels) + l2_lambda * l2_reg_loss(model)
                 loss.backward()
                 optimizer.step()
 
@@ -224,8 +224,7 @@ def run(config):
         f1_no_improvement = 0
         f1_history = deque(maxlen=5)  # rolling window for smoothing
         smoothed_best = 0.0
-        PATIENCE = config["patience"]  # break after 30 epochs of no improvement
-        l2_lambda = 0.005 
+        PATIENCE = config["patience"]  # break after 30 epochs of no improvement 
         for epoch in range(start_epoch, end_epoch):
             print(f"\nEpoch {epoch + 1}/{end_epoch}")
 
@@ -390,4 +389,5 @@ def run(config):
 if __name__ == "__main__":
     args = parse_args()
     config = create_config(args)
+    print(f"Columns config: {config['columns']}")
     run(config)
