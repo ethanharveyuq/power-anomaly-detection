@@ -146,11 +146,11 @@ def run(config):
     # Loss model
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # for classification, 0.1 prevents over confidence
 
-    l2_lambda = 0.005
+    l2_lambda = config["l2 lambda"]
     # experiment loop
     if config["experiment"]:
         print("Beginning experimental training")
-        for step in range(800):
+        for step in range(config["epochs per run"]):
             correct, total, total_loss = 0, 0, 0.0
             model.train()
             for windows, labels in overfit_loader:
@@ -180,10 +180,10 @@ def run(config):
                         val_total += labels.size(0)
                 model.train()
 
-                print(f"step {step}: train_loss={total_loss/len(overfit_loader):.4f} "
-                    f"train_acc={correct/total:.4f} "
-                    f"val_loss={val_loss/len(overfit_val_loader):.4f} "
-                    f"val_acc={val_correct/val_total:.4f}")
+            print(f"step {step}: train_loss={total_loss/len(overfit_loader):.4f} "
+                f"train_acc={correct/total:.4f} "
+                f"val_loss={val_loss/len(overfit_val_loader):.4f} "
+                f"val_acc={val_correct/val_total:.4f}")
 
 
     else:
