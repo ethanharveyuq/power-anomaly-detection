@@ -42,7 +42,7 @@ def run(config):
         train_data = PMUData(config['train data'], config['train pattern'], config)
         train_dataset = PMUDataset(train_data)
         labels = train_dataset.labels_df['Label'].values
-        per_class_cap = 70
+        per_class_cap = 100
 
         selected_indices = []
         for cls in np.unique(labels):
@@ -88,7 +88,7 @@ def run(config):
         )
 
         # Make validation set smaller samples to increase epoch speed
-        val_samples_per_class = 50 # can tune
+        val_samples_per_class = 100 # can tune
         val_labels = validation_dataset.labels_df['Label'].values
         rng = np.random.default_rng(config['seed'])
 

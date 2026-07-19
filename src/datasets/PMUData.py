@@ -177,7 +177,7 @@ class PMUData(BaseData):
         self.config = config
         self.file_pattern = file_pattern
         # class names
-        self.class_names = []
+        self.class_names = {}
         # columns being used in windows
         self.feature_names = config['columns']
         self.max_seq_len = config['window length']
@@ -199,7 +199,8 @@ class PMUData(BaseData):
         feature_frames = []
         win_idx = 0
         new_win_idx = 0
-        files_loaded = 0
+        pmus_loaded = 0
+        pmu_id = 0
 
         directory_path = Path(root_dir)
         for file_path in sorted(directory_path.iterdir()):
@@ -207,7 +208,12 @@ class PMUData(BaseData):
             if file_path.is_file() and self.file_pattern.match(file_path.name):
                 # storing class name
                 pmu_name = file_path.name[:-15]
-                self.class_names.append(pmu_name) # chop off timestamp just keep PMU id TODO change with .stem and regex
+                if pmu_name not in self.class_names:
+                    self.class_names[pmu_name] = pmus_loaded
+                    pmu_id = pmus_loaded
+                    pmus_loaded += 1
+                else: # loaded a pmu we've seen before
+                    pmu_id = self.class_names[pmu_name]
                 # load df
                 df = self.load_single_file(file_path, pmu_name.upper())
                 # clean df
@@ -225,10 +231,9 @@ class PMUData(BaseData):
                 # add window indexs to label then icrement
                 # should line up with windows added, TODO should be moved to increment during window creation
                 for _ in range(win_idx, new_win_idx):
-                    labels.append(files_loaded) # the windows in that range belong to the ID
+                    labels.append(pmu_id) # the windows in that range belong to the ID
 
                 win_idx = new_win_idx
-                files_loaded += 1
         
         # Window IDs
         self.all_IDs = list(range(win_idx))
@@ -300,9 +305,14 @@ class PMUData(BaseData):
         """
         for col in self.feature_names:
             if col in ["FREQ"]:
-                df[col] = (df[col] - 50.0) / 0.05
+                df[col] = (df[col] - 50.0) / 0.05 # mean and sd from IEEE spec
             elif col.endswith(":ANG"):
-                df[col] = np.sin(np.deg2rad(df[col])) # take the sine of teh angle [-1,1]
-            elif col.endswith(":MAG"): # only voltage support for now
-                df[col] = (df[col] - 12000) / 500 # need to change as mean and ad different
+                df[col] = np.sin(np.deg2rad(df[col])) # take the sine of the angle [-1,1]
+            elif col.endswith(":MAG"):
+                if col.startswith("U"):
+                    df[col] = (df[col] - 12973.4) / 47.4 # mean and std from observed 1st hour of data
+                elif col.startswith("I"):
+                    df[col] = (df[col] - 95.21) / 0.5
         return df
+
+    
