@@ -1,158 +1,276 @@
-# PMU Source Identification
-A Python pipeline for preprocessing and classifying synchrophasor (PMU) measurement data from the Victorian power network, using LLM-based and sequence-modelling approaches for source identification.
+# PMU Source Identification using GPT4TS
+
+A deep learning framework for identifying the source of synchrophasor (PMU) measurements using foundation models for time-series classification.
+
+The project investigates whether pretrained transformer architectures can learn unique fingerprints of Phasor Measurement Units (PMUs) from high-frequency synchrophasor data collected from the Victorian electricity distribution network.
 
 ---
 
-## Project Overview
+## Overview
 
-Modern power systems generate large volumes of heterogeneous measurement data from Phasor Measurement Units (PMUs). Ensuring the authenticity and integrity of these measurements is critical for reliable grid operation and defence against data-driven cyber attacks.
+Phasor Measurement Units (PMUs) continuously stream synchronized voltage, current and frequency measurements used for monitoring and controlling modern power systems.
 
-This project explores the use of large language models (LLMs) and related foundation models for **PMU source identification** — given a window of synchrophasor measurements, predict which of ~50 PMUs it originated from. This is a 50-class fingerprinting problem operating on high-frequency time-series data (50 samples/second) sourced from Victorian distribution network PMUs operated by AusNet Services.
+This project explores **PMU source identification**, where the goal is to determine **which PMU generated a given sequence of measurements**. The problem is formulated as a multi-class time-series classification task involving approximately 50 PMUs.
+
+Unlike traditional fingerprinting approaches that rely on handcrafted statistical features, this work investigates adapting pretrained language-model architectures to multivariate time-series data using the **GPT4TS** framework.
+
+Current experiments focus on:
+
+- GPT4TS for multivariate time-series classification
+- Transfer learning from pretrained GPT-2
+- Patch-based time-series tokenization
+- PMU fingerprinting using frequency and voltage phasors
+- Evaluation using accuracy, macro F1-score and confusion matrices
 
 ---
 
-## Project Structure
+## Repository Structure
 
-```
+```text
 power-anomaly-detection/
-├── data/                          # Raw PMU data files (one per unit)
-├── src/
-│   ├── load_data.py               # Data ingestion and column renaming
-│   └── process_data.py            # Preprocessing pipeline
 │
-├── notebooks/
-│   └── exploration.ipynb          # Exploratory data analysis
-├── main.py                        # Pipeline entry point
+├── data/                       # PMU CSV files
+├── checkpoints/                # Saved model checkpoints
+│
+├── src/
+│   ├── datasets/
+│   │   ├── PMUData.py          # Data loading and preprocessing
+|   |   └── dataset.py          # Dataset used by pytorch
+│   │
+│   ├── models/
+│   │   ├── gpt4ts.py           # GPT4TS classifier
+│   │   └── embed.py            # Patch embedding layers
+│   │
+│   └── visualise.py            # visualise training/validation progress
+│
+├── main.py                     # Training / validation pipeline
+├── script.sh                   # Example training configuration
+├── visualise.sh                # Example visualisation script
 ├── README.md
 └── requirements.txt
 ```
 
 ---
 
-## Dataset
+# Dataset
 
-- **Source:** AusNet Services Victorian distribution network
-- **Coverage:** 3-hour window (October 2021)
-- **Units:** ~50 PMUs
-- **Granularity:** 20ms intervals (50 Hz)
-- **Format:** One CSV/Excel file per PMU, columns include timestamp, frequency, GPS flag, voltage phasors (A/B/C magnitude and angle), and current phasors (A/B/C/N magnitude and angle)
+The dataset consists of synchronized PMU measurements collected from the Victorian electricity distribution network.
 
-### Key Columns
+### Characteristics
 
-| Column | Description |
-|---|---|
-| Timestamp | Sample time (`DD/MM/YYYY HH:MM:SS.ffffff`) |
-| FREQ | Fundamental frequency (Hz) |
-| FLAG | GPS lock status — bitwise field per IEC C37.118; 64/128 = good, ≥1000 = bad lock |
-| UA/UB/UC MAG+ANG | Phase voltage magnitude and angle (A, B, C) |
-| UR/US/UT MAG+ANG | Secondary voltage phasors |
-| IA/IB/IC/IN MAG+ANG | Phase and neutral current magnitude and angle |
+| Property | Value |
+|----------|-------|
+| PMUs | ~49 |
+| Sampling rate | 50 Hz |
+| Sample interval | 20 ms |
+| Duration | Three one-hour recordings per PMU |
+| Format | CSV |
 
----
+Each CSV contains synchronized measurements including:
 
-## Preprocessing Pipeline
+- Frequency
+- GPS status flag
+- Voltage magnitude and angle
+- Current magnitude and angle
 
-All preprocessing is handled in `src/process_data.py`. The pipeline runs per-PMU in the following order:
+Example input features include
 
-### 1. Duplicate Removal
-Duplicate timestamps are dropped, keeping the first occurrence. This must occur before reindexing as pandas cannot reindex over a non-unique index.
-
-### 2. Reindex to Uniform Grid
-The dataframe is reindexed to a strict 20ms `DatetimeIndex` using `pd.date_range`. Rows absent from the original data appear as NaN after this step.
-
-### 3. Interpolate Short Gaps
-Contiguous runs of missing rows up to `MAX_INTERP_GAP` samples are filled using linear interpolation. Runs exceeding this threshold are left as NaN and dropped downstream.
-
-### 4. GPS Loss Detection and Flagging
-The FLAG column is scanned for contiguous runs of bad GPS lock values (FLAG ≥ `MAX_FLAG`). Runs exceeding `MAX_INTERP_GAP` are flagged as NaN across all data columns. Short runs are linearly interpolated using surrounding good-lock values.
-
-> **Why GPS loss matters:** When a PMU loses GPS lock, it free-runs on its internal clock. Timestamps during this window can drift and are not trustworthy for time-series alignment. Interpolating across these windows would fabricate data at timestamps that may not correspond to reality.
-
-### 5. Drop Unfillable Rows
-Rows still containing NaN across data columns after steps 3–4 are dropped via `dropna()`.
-
-### 6. Segment Assignment
-A `segment_id` column is assigned that increments at every discontinuity (gap left by GPS loss or unfilled missing rows). This ensures sliding windows used for model training never straddle a real-world time gap.
-
-### Key Constants
-
-| Constant | Value | Description |
-|---|---|---|
-| `SAMPLE_PERIOD_MS` | 20 | Sample interval in milliseconds |
-| `MAX_INTERP_GAP` | 10 | Max consecutive samples to interpolate |
-| `MAX_FLAG` | 1000 | Threshold above which FLAG indicates bad GPS lock |
-| `GOOD_FLAG_VALUES` | {64, 128} | Confirmed good GPS lock values |
-
-> **Note:** `MAX_FLAG` is empirically derived from the observed FLAG distribution (64, 128, 270784, 270800, 270816). The bad values are likely a bitmask per IEC C37.118 PMU status word conventions — this has not been verified against the device specification and is noted as a known limitation.
-
----
-
-## Feature Stages
-
-Features are added incrementally as model experiments progress:
-
-| Stage | Features |
-|---|---|
-| Stage 1 | `FREQ` only |
-| Stage 2 | `FREQ` + voltage phasors (UA/UB/UC MAG+ANG) |
-| Stage 3 | `FREQ` + voltage + current phasors (IA/IB/IC/IN MAG+ANG) |
-
----
-
-## How to Run
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/ethanharveyuq/power-anomaly-detection.git
-cd power-anomaly-detection
+```
+FREQ
+UA:MAG
+UA:ANG
+UB:MAG
+UB:ANG
+UC:MAG
+UC:ANG
 ```
 
-### 2. Install dependencies
+Additional channels can easily be incorporated through the command-line interface.
+
+---
+
+# Data Preprocessing
+
+Each PMU is preprocessed independently before training.
+
+The preprocessing pipeline performs:
+
+1. Duplicate timestamp removal
+2. Timestamp parsing
+3. Uniform 20 ms reindexing
+4. Missing value interpolation (small gaps only)
+5. GPS lock validation using the FLAG field
+6. Removal of invalid sections
+7. Continuous segment identification
+8. Sliding-window generation
+
+Segment IDs ensure that no training window crosses a discontinuity introduced by missing data or GPS lock loss.
+
+---
+
+# Model
+
+The classifier is based on **GPT4TS**, which adapts a pretrained GPT-2 model for multivariate time-series classification.
+
+The pipeline consists of
+
+```
+Input Window
+      │
+      ▼
+Patch Extraction
+      │
+      ▼
+Patch Embedding
+      │
+      ▼
+Pretrained GPT-2 Backbone
+(first six transformer blocks)
+      │
+      ▼
+LayerNorm
+      │
+      ▼
+Dropout
+      │
+      ▼
+Linear Classification Head
+      │
+      ▼
+Predicted PMU
+```
+
+The GPT-2 backbone is initialized from pretrained weights, while the classification head is trained for PMU identification.
+
+---
+
+# Training
+
+Training uses:
+
+- Cross-entropy loss
+- Adam optimizer
+- Separate learning rates for backbone and classifier
+- Early stopping
+- Checkpointing
+- Validation after every epoch
+- Optional GPU acceleration
+
+The training script records
+
+- Training accuracy
+- Training loss
+- Validation accuracy
+- Validation macro F1-score
+- Validation loss
+- Runtime
+- Memory usage
+
+---
+
+# Running Experiments
+
+Example configuration:
+
+```bash
+python3 main.py \
+    --data-dir ./data \
+    --columns FREQ UA:MAG UA:ANG UB:MAG UB:ANG UC:MAG UC:ANG \
+    --window-length 500 \
+    --stride 400 \
+    --batch-size 32 \
+    --epochs-per-run 100 \
+    --head-learning-rate 3e-4 \
+    --backbone-learning-rate 1e-5 \
+    --dropout 0.1 \
+    --patch-size 10 \
+    --patch-stride 10 \
+    --d-model 768 \
+    --patience 15 \
+    --l2-lambda 0.001
+```
+
+---
+
+# Important Hyperparameters
+
+| Parameter | Description |
+|-----------|-------------|
+| window-length | Length of each input sequence |
+| stride | Sliding-window stride |
+| patch-size | Number of samples per patch |
+| patch-stride | Distance between adjacent patches |
+| d-model | GPT embedding dimension |
+| head-learning-rate | Learning rate of classification head |
+| backbone-learning-rate | Learning rate of pretrained GPT layers |
+| dropout | Dropout before classification |
+| l2-lambda | L2 regularization strength |
+| patience | Early stopping patience |
+
+---
+
+# Evaluation
+
+Performance is evaluated using
+
+- Classification accuracy
+- Macro F1-score
+- Cross-entropy loss
+- Confusion matrix
+
+The framework supports experiments on varying numbers of PMUs, allowing evaluation of scalability from small subsets to the complete 49-class identification task.
+
+---
+
+# Current Research Focus
+
+This project investigates:
+
+- Can pretrained language models identify PMUs directly from raw synchrophasor measurements?
+- How well do pretrained representations transfer to power-system time-series?
+- How does classification performance scale with increasing numbers of PMUs?
+- Which combinations of electrical measurements provide the strongest PMU fingerprints?
+
+---
+
+# Requirements
+
+- Python 3.11
+- PyTorch
+- Transformers
+- pandas
+- numpy
+- scikit-learn
+- einops
+- matplotlib
+
+Install dependencies with
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Add data files
-Place PMU data files in the `data/` folder.
+---
 
-### 4. Run the pipeline
-```bash
-python main.py
-```
+# Future Work
+
+Possible extensions include
+
+- Fine-tuning additional GPT layers
+- Comparison against PatchTST and iTransformer
+- Self-supervised pretraining on PMU data
+- Robustness against noisy or spoofed measurements
+- Cross-network generalization
+- Explainability of learned PMU fingerprints
 
 ---
 
-## Requirements
+# Author
 
-- Python 3.8+
-- pandas
-- numpy
-- scipy
-- scikit-learn
-- matplotlib
-- openpyxl
+**Ethan Harvey**
 
----
+Undergraduate Research Project
 
-## Key Design Decisions
+School of Electrical Engineering and Computer Science
 
-- **GPS loss is excluded, not interpolated over** — timestamps during GPS loss windows are untrustworthy and fabricating values at those positions would corrupt any time-aligned model
-- **Segment IDs prevent cross-gap training windows** — any sequence model operating on sliding windows must respect segment boundaries to avoid treating discontinuous data as continuous signal
-- **Incremental feature addition** — starting from frequency only and adding voltage/current progressively allows controlled attribution of classification performance improvements to specific signal types
-- **Per-PMU preprocessing** — each unit is cleaned independently before any cross-unit alignment, preventing timestamp mismatches from propagating across the dataset
-
----
-
-## Possible Extensions
-
-- Sliding window feature extraction and windowed dataset construction
-- Transformer-based sequence classifier (PatchTST, iTransformer)
-- LLM backbone fine-tuning for time-series (GPT4TS / One Fits All approach)
-- Cross-PMU alignment for spatial feature extraction
-- Evaluation against spoofed/injected data for FDIA detection
-
----
-
-## Author
-
-Ethan Harvey — Undergraduate Research Project, University of Queensland
+The University of Queensland
