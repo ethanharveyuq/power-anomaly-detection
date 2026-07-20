@@ -74,7 +74,8 @@ def run(config):
         #test_data = PMUData(config['test data'], config['test pattern'], config)
 
         # create PMUDataset object wrappers
-        train_dataset = PMUDataset(train_data) 
+        train_dataset = PMUDataset(train_data)
+        print(f"Train dataset length: {len(train_dataset.labels_df)}")
         validation_dataset = PMUDataset(validation_data)
         #test_dataset = PMUDataset(test_data)
     
@@ -125,20 +126,25 @@ def run(config):
     print(model.feat_dim * model.patch_size)
 
     # Initialise optimiser
-    backbone_params = []
+    UNFROZEN_BLOCKS = [5]
+    backbone_frozen_params = []  # ln, wpe - already-tuned lr=1e-5
+    backbone_unfrozen_params = []  # newly unfrozen block - needs its own lr
     head_params = []
 
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if name.startswith('gpt2.'):
-            backbone_params.append(param)
+        if name.startswith('gpt2.') and any(f'h.{b}.' in name for b in UNFROZEN_BLOCKS):
+            backbone_unfrozen_params.append(param)
+        elif name.startswith('gpt2.'):
+            backbone_frozen_params.append(param)
         else:
-            head_params.append(param)  # enc_embedding, ln_proj, out_layer
+            head_params.append(param)
 
     optimizer = torch.optim.AdamW([
-        {'params': backbone_params, 'lr': config["backbone learning rate"], 'weight_decay': 0.0},
-        {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': 0.00}, # maybe change to 0.0
+        {'params': backbone_frozen_params, 'lr': config["backbone learning rate"], 'weight_decay': 0.0},
+        {'params': backbone_unfrozen_params, 'lr': config["backbone learning rate"] * 5, 'weight_decay': 0.0},  # small multiplier above the ln/wpe rate, still well below head_lr
+        {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': config["head weight decay"]},
     ])
     for i, g in enumerate(optimizer.param_groups):
         print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
@@ -296,6 +302,7 @@ def run(config):
             # recall = skm.recall_score(all_labels, all_predictions, average="macro")
             f1 = skm.f1_score(all_labels, all_predictions, average="macro")
             time_elapsed = end_time - start_time
+            avg_time = time_elapsed / len(validation_loader.dataset)
             training_data["validation accuracy"].append(accuracy)
             training_data["validation f1"].append(f1)
             training_data["validation loss"].append(average_validation_loss)
