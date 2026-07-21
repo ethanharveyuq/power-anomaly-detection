@@ -3,6 +3,7 @@ from src.datasets.dataset import PMUDataset
 from src.models.gpt4ts import gpt4ts
 from config import parse_args, create_config
 from collections import Counter, deque
+from src.visualise import plot_confusion_matrix
 import sklearn.metrics as skm
 import torch
 import torch.nn as nn
@@ -307,6 +308,7 @@ def run(config):
             f1 = skm.f1_score(all_labels, all_predictions, average="macro")
             time_elapsed = end_time - start_time
             avg_time = time_elapsed / len(validation_loader.dataset)
+            cm = skm.confusion_matrix(all_labels, all_predictions)
             training_data["validation accuracy"].append(accuracy)
             training_data["validation f1"].append(f1)
             training_data["validation loss"].append(average_validation_loss)
@@ -322,6 +324,7 @@ def run(config):
             print(f"Current memory: {current / 10**6:.2f} MB")
             print(f"Peak memory: {peak / 10**6:.2f} MB")
             print(skm.classification_report(all_labels, all_predictions, zero_division=0))
+            print(cm)
 
             scheduler.step(f1)
             f1_history.append(f1)
@@ -354,6 +357,23 @@ def run(config):
             "scheduler": scheduler.state_dict()
             }, "checkpoint.pt.tmp") # write to a tmp file then replace
             os.replace("checkpoint.pt.tmp", "checkpoint.pt")
+
+        # Plot confusion matrix of best model
+        model.load_state_dict(torch.load("best_model.pt", map_location=device))
+        model.eval()
+
+        all_predictions = []
+        all_labels = []
+
+        with torch.no_grad():
+            for windows, labels in validation_loader: # change to test_loader for testing
+                windows, labels = windows.to(device), labels.to(device)
+                outputs = model(windows)
+                predictions = torch.argmax(outputs, dim=1)
+                all_predictions.extend(predictions.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+
+        plot_confusion_matrix(all_labels, all_predictions, save_path="confusion_matrix.png")
 
     """
     # Reload best model

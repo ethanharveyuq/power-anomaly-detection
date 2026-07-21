@@ -6,7 +6,8 @@ import torch
 import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
-
+import sklearn.metrics as skm
+import numpy as np
 
 def load_checkpoint(path: str, device: str = "cpu"):
     checkpoint = torch.load(path, map_location=device, weights_only=False)
@@ -69,6 +70,35 @@ def plot_training(df: pd.DataFrame, config: dict, save_path: str = None):
         plt.show()
 
 
+def plot_confusion_matrix(all_labels, all_predictions, class_names=None, save_path=None):
+    cm = skm.confusion_matrix(all_labels, all_predictions)
+
+    fig, ax = plt.subplots(figsize=(16, 14))
+    im = ax.imshow(cm, cmap="Blues")
+
+    ax.set_xlabel("Predicted label")
+    ax.set_ylabel("True label")
+    ax.set_title("Confusion Matrix")
+
+    if class_names is not None:
+        ax.set_xticks(np.arange(len(class_names)))
+        ax.set_yticks(np.arange(len(class_names)))
+        ax.set_xticklabels(class_names, rotation=90, fontsize=6)
+        ax.set_yticklabels(class_names, fontsize=6)
+    else:
+        ax.set_xticks(np.arange(cm.shape[1]))
+        ax.set_yticks(np.arange(cm.shape[0]))
+
+    fig.colorbar(im, ax=ax, label="Count")
+    fig.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150)
+        print(f"Saved confusion matrix to {save_path}")
+    else:
+        plt.show()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", default="checkpoint.pt")
@@ -85,6 +115,7 @@ if __name__ == "__main__":
 
     df = build_dataframe(training_data)
     plot_training(df, config, save_path=args.save_fig)
+
     if args.save_data:
         df.to_csv(args.save_data, index=False)
         print(f"Saved data to {args.save_data}")
