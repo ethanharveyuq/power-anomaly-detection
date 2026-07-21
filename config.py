@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", action="store_true", help="Resume training after a checkpoint")
     parser.add_argument("--patience", type=int, default=30)
     parser.add_argument("--l2-lambda", type=float, default=0.05)
+    parser.add_argument("--head-weight-decay", type=float, default=0.01)
 
     # Smaller experiment set?
     parser.add_argument("--experiment", action="store_true")
@@ -91,7 +92,8 @@ def create_config(args: argparse.Namespace) -> dict:
         "head learning rate": args.head_learning_rate,
         "backbone learning rate": args.backbone_learning_rate,
         "patience": args.patience,
-        "l2 lambda": args.l2_lambda
+        "l2 lambda": args.l2_lambda,
+        "head weight decay": args.head_weight_decay
     }
 
     return config

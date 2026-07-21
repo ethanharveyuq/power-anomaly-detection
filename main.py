@@ -13,6 +13,7 @@ import random
 import os
 import time
 import tracemalloc
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # from GPT4TS
 def l2_reg_loss(model):
@@ -149,6 +150,8 @@ def run(config):
     for i, g in enumerate(optimizer.param_groups):
         print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
 
+    #  Learning rate scheduler
+    scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
     # Loss model
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # for classification, 0.1 prevents over confidence
 
@@ -216,6 +219,7 @@ def run(config):
 
             model.load_state_dict(checkpoint["model"])
             optimizer.load_state_dict(checkpoint["optimizer"])
+            scheduler.load_state_dict(checkpoint["scheduler"])
 
             start_epoch = checkpoint["epoch"] + 1
             best_f1 = checkpoint["best_f1"]
@@ -319,7 +323,7 @@ def run(config):
             print(f"Peak memory: {peak / 10**6:.2f} MB")
             print(skm.classification_report(all_labels, all_predictions, zero_division=0))
 
-
+            scheduler.step(f1)
             f1_history.append(f1)
             smoothed_f1 = sum(f1_history) / len(f1_history)
 
@@ -346,7 +350,8 @@ def run(config):
             "optimizer": optimizer.state_dict(),
             "best_f1": best_f1,
             "training_data": training_data,
-            "config": config
+            "config": config,
+            "scheduler": scheduler.state_dict()
             }, "checkpoint.pt.tmp") # write to a tmp file then replace
             os.replace("checkpoint.pt.tmp", "checkpoint.pt")
 
