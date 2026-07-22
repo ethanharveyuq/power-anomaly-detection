@@ -15,7 +15,7 @@ import os
 import time
 import tracemalloc
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.optim.lr_scheduler import CosineAnnealingLR1
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 # from GPT4TS
 def l2_reg_loss(model):
@@ -73,14 +73,14 @@ def run(config):
         train_data = PMUData(config['train data'], config['train pattern'], config)
         print("Loading validation data...")
         validation_data = PMUData(config['validation data'], config['validation pattern'], config)
-        #print("Loading testing data")
-        #test_data = PMUData(config['test data'], config['test pattern'], config)
+        print("Loading testing data")
+        test_data = PMUData(config['test data'], config['test pattern'], config)
 
         # create PMUDataset object wrappers
         train_dataset = PMUDataset(train_data)
         print(f"Train dataset length: {len(train_dataset.labels_df)}")
         validation_dataset = PMUDataset(validation_data)
-        #test_dataset = PMUDataset(test_data)
+        test_dataset = PMUDataset(test_data)
     
         #Create Dataloaders (create mini batches)
         train_loader = DataLoader(
@@ -113,13 +113,13 @@ def run(config):
         pin_memory=True     
         )
 
-        #test_loader = DataLoader(
-        #dataset=test_dataset, 
-        #batch_size=config['batch size'],      
-        #shuffle=True,       
-        #num_workers=2,      
-        #pin_memory=True
-        #)
+        test_loader = DataLoader(
+        dataset=test_dataset, 
+        batch_size=config['batch size'],      
+        shuffle=True,       
+        num_workers=2,      
+        pin_memory=True
+        )
 
     # Create GPT4TS model
     print("Initialising LLM Model...")
@@ -153,8 +153,8 @@ def run(config):
     if config["scheduler"] == "ReduceLROnPlateau":
         scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
     elif config["scheduler"] == "CosineAnnealingLR":
-        scheduler = CosineAnnealingLR1(optimizer, T_max=config["epochs per run"], eta_min=config["backbone learning rate"] * 0.01)
-    print(f"Using scheduler: {config["scheduler"]}")
+        scheduler = CosineAnnealingLR(optimizer, T_max=config["epochs per run"], eta_min=config["backbone learning rate"] * 0.01)
+    print(f"Using scheduler: {config['scheduler']}")
     # Loss model
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # for classification, 0.1 prevents over confidence
 
@@ -196,9 +196,9 @@ def run(config):
                 f"train_acc={correct/total:.4f} "
                 f"val_loss={val_loss/len(overfit_val_loader):.4f} "
                 f"val_acc={val_correct/val_total:.4f}")
+        return
 
-
-    else:
+    elif not config["test only"]:
 
         # Proper training loop
         print("Beginning training...")
@@ -365,28 +365,10 @@ def run(config):
             }, "checkpoint.pt.tmp") # write to a tmp file then replace
             os.replace("checkpoint.pt.tmp", "checkpoint.pt")
 
-        # Plot confusion matrix of best model
-        model.load_state_dict(torch.load("best_model.pt", map_location=device))
-        model.eval()
 
-        all_predictions = []
-        all_labels = []
-
-        with torch.no_grad():
-            for windows, labels in validation_loader: # change to test_loader for testing
-                windows, labels = windows.to(device), labels.to(device)
-                outputs = model(windows)
-                predictions = torch.argmax(outputs, dim=1)
-                all_predictions.extend(predictions.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
-
-        plot_confusion_matrix(all_labels, all_predictions, save_path="confusion_matrix.png")
-
-    """
-    # Reload best model
+    # AFTER TRAINING, TESTING - Reload best model
     model.load_state_dict(torch.load("best_model.pt"))
     model.eval()
-    
     
     # Final testing
     all_predictions = []
@@ -406,14 +388,13 @@ def run(config):
             all_predictions.extend(predictions.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
     
-
+    
     # Compute final metrics
 
-    accuracy = ...
-    precision = ...
-    recall = ...
-    f1 = ...
-    confusion = ...
+    accuracy = skm.accuracy_score(all_labels, all_predictions)
+    precision = skm.precision_score(all_labels, all_predictions, average="macro")
+    recall = skm.recall_score(all_labels, all_predictions, average="macro")
+    f1 = skm.f1_score(all_labels, all_predictions, average="macro")
 
     print("Final Results")
     print("---------------------")
@@ -422,8 +403,8 @@ def run(config):
     print(f"Recall   : {recall:.4f}")
     print(f"F1 Score : {f1:.4f}")
 
-    print(confusion)
-    """
+    plot_confusion_matrix(all_labels, all_predictions, save_path="confusion_matrix.png")
+        
 
 if __name__ == "__main__":
     args = parse_args()
