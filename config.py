@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--patience", type=int, default=30)
     parser.add_argument("--l2-lambda", type=float, default=0.05)
     parser.add_argument("--head-weight-decay", type=float, default=0.01)
-
+    parser.add_argument("--scheduler", type=str, default=None)
     # Smaller experiment set?
     parser.add_argument("--experiment", action="store_true")
 
@@ -62,9 +62,9 @@ def create_config(args: argparse.Namespace) -> dict:
         validation_pattern = re.compile(rf"^({pmu_pattern}).*01\.csv$")
         test_pattern = re.compile(rf"^({pmu_pattern}).*02\.csv$")
     else:
-        train_pattern = re.compile(r"^.*00\.csv$")
-        validation_pattern = re.compile(r"^.*01\.csv$")
-        test_pattern = re.compile(r"^.*02\.csv$")
+        train_pattern = re.compile(r'^.*(00|01)\.csv$')
+        validation_pattern = re.compile(r"^.*02\.csv$")
+        #test_pattern = re.compile(r"^.*02\.csv$")
 
     
 
@@ -74,7 +74,7 @@ def create_config(args: argparse.Namespace) -> dict:
         "validation data": args.data_dir,
         "validation pattern": validation_pattern,
         "test data": args.data_dir,
-        "test pattern": test_pattern,
+        #"test pattern": test_pattern,
         "window length": args.window_length,
         "stride": args.stride,
         "columns": args.columns,
@@ -93,7 +93,8 @@ def create_config(args: argparse.Namespace) -> dict:
         "backbone learning rate": args.backbone_learning_rate,
         "patience": args.patience,
         "l2 lambda": args.l2_lambda,
-        "head weight decay": args.head_weight_decay
+        "head weight decay": args.head_weight_decay,
+        "scheduler": args.scheduler
     }
 
     return config

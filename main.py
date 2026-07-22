@@ -15,6 +15,7 @@ import os
 import time
 import tracemalloc
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import CosineAnnealingLR1
 
 # from GPT4TS
 def l2_reg_loss(model):
@@ -136,23 +137,24 @@ def run(config):
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if name.startswith('gpt2.') and any(f'h.{b}.' in name for b in UNFROZEN_BLOCKS):
-            backbone_unfrozen_params.append(param)
-        elif name.startswith('gpt2.'):
+        if name.startswith('gpt2.'):
             backbone_frozen_params.append(param)
         else:
             head_params.append(param)
 
     optimizer = torch.optim.AdamW([
         {'params': backbone_frozen_params, 'lr': config["backbone learning rate"], 'weight_decay': 0.0},
-        {'params': backbone_unfrozen_params, 'lr': config["backbone learning rate"] * 5, 'weight_decay': 0.0},  # small multiplier above the ln/wpe rate, still well below head_lr
         {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': config["head weight decay"]},
     ])
     for i, g in enumerate(optimizer.param_groups):
         print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
 
     #  Learning rate scheduler
-    scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
+    if config["scheduler"] == "ReduceLROnPlateau":
+        scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
+    elif config["scheduler"] == "CosineAnnealingLR":
+        scheduler = CosineAnnealingLR1(optimizer, T_max=config["epochs per run"], eta_min=config["backbone learning rate"] * 0.01)
+    print(f"Using scheduler: {config["scheduler"]}")
     # Loss model
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # for classification, 0.1 prevents over confidence
 
@@ -220,7 +222,8 @@ def run(config):
 
             model.load_state_dict(checkpoint["model"])
             optimizer.load_state_dict(checkpoint["optimizer"])
-            scheduler.load_state_dict(checkpoint["scheduler"])
+            if config["scheduler"] is not None:
+                scheduler.load_state_dict(checkpoint["scheduler"])
 
             start_epoch = checkpoint["epoch"] + 1
             best_f1 = checkpoint["best_f1"]
@@ -326,7 +329,11 @@ def run(config):
             print(skm.classification_report(all_labels, all_predictions, zero_division=0))
             print(cm)
 
-            scheduler.step(f1)
+            if config["scheduler"] == "ReduceLROnPlateau":
+                scheduler.step(f1)
+            elif config["scheduler"] == "CosineAnnealingLR":
+                scheduler.step()
+            
             f1_history.append(f1)
             smoothed_f1 = sum(f1_history) / len(f1_history)
 
