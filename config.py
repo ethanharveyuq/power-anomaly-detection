@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--columns", nargs="+",
                         default=["FREQ"])
+    parser.add_argument("--normalise", type=str, default="window")
 
     # Training
     parser.add_argument("--batch-size", type=int, default=32)
@@ -66,8 +67,6 @@ def create_config(args: argparse.Namespace) -> dict:
         validation_pattern = re.compile(r"^.*01\.csv$")
         test_pattern = re.compile(r"^.*02\.csv$")
 
-    
-
     config = {
         "train data": args.data_dir,
         "train pattern": train_pattern,
@@ -94,7 +93,8 @@ def create_config(args: argparse.Namespace) -> dict:
         "patience": args.patience,
         "l2 lambda": args.l2_lambda,
         "head weight decay": args.head_weight_decay,
-        "scheduler": args.scheduler
+        "scheduler": args.scheduler,
+        "normalise": args.normalise
     }
 
     return config

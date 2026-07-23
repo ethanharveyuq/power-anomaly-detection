@@ -219,7 +219,8 @@ class PMUData(BaseData):
                 # clean df
                 df = self.clean_dataframe(df)
                 # normalise data
-                df = self.normalise_data(df)
+                if self.config["normalise"] == "global":
+                    df = self.normalise_data(df)
 
                 # iterate over all segments and make windows
                 for _, segment_df in df.groupby("segment_id"):
@@ -290,6 +291,9 @@ class PMUData(BaseData):
             window_df = df.iloc[start : start + window_length]
             feature_df = window_df[self.feature_names]
             feature_df = feature_df.copy()
+
+            if self.config["normalise"] == "window":
+                feature_df = self.normalise_window(feature_df)
             feature_df["WindowID"] = win_idx
             windows.append(feature_df)
             
@@ -314,5 +318,14 @@ class PMUData(BaseData):
                 elif col.startswith("I"):
                     df[col] = (df[col] - 95.21) / 0.5
         return df
+
+
+    def normalise_window(self, feature_df: pd.DataFrame) -> pd.DataFrame:
+
+        for column in feature_df:
+            # Standardize a single column 
+            feature_df[column] = (feature_df[column] - feature_df[column].mean()) / feature_df[column].std()
+
+        return feature_df
 
     

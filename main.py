@@ -354,15 +354,19 @@ def run(config):
                     break
 
             # save last model
-            torch.save({
-            "epoch": epoch,
-            "model": model.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            "best_f1": best_f1,
-            "training_data": training_data,
-            "config": config,
-            "scheduler": scheduler.state_dict()
-            }, "checkpoint.pt.tmp") # write to a tmp file then replace
+            checkpoint = {
+                "epoch": epoch,
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "best_f1": best_f1,
+                "training_data": training_data,
+                "config": config,
+            }
+
+            if scheduler is not None:
+                checkpoint["scheduler"] = scheduler.state_dict()
+
+            torch.save(checkpoint, "checkpoint.pt.tmp")
             os.replace("checkpoint.pt.tmp", "checkpoint.pt")
 
 
