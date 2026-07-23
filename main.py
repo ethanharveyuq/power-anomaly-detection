@@ -178,7 +178,7 @@ def run(config):
                 correct += (preds == labels).sum().item()
                 total += labels.size(0)
 
-            if step % 10 == 0:
+            if step % 10 == 0 or config["epochs per run"] <= 100:
                 model.eval()
                 val_correct, val_total, val_loss = 0, 0, 0.0
                 with torch.no_grad():

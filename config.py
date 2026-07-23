@@ -62,9 +62,9 @@ def create_config(args: argparse.Namespace) -> dict:
         validation_pattern = re.compile(rf"^({pmu_pattern}).*01\.csv$")
         test_pattern = re.compile(rf"^({pmu_pattern}).*02\.csv$")
     else:
-        train_pattern = re.compile(r'^.*(00|01)\.csv$')
-        validation_pattern = re.compile(r"^.*02\.csv$")
-        #test_pattern = re.compile(r"^.*02\.csv$")
+        train_pattern = re.compile(r'^.*00\.csv$')
+        validation_pattern = re.compile(r"^.*01\.csv$")
+        test_pattern = re.compile(r"^.*02\.csv$")
 
     
 
@@ -74,7 +74,7 @@ def create_config(args: argparse.Namespace) -> dict:
         "validation data": args.data_dir,
         "validation pattern": validation_pattern,
         "test data": args.data_dir,
-        #"test pattern": test_pattern,
+        "test pattern": test_pattern,
         "window length": args.window_length,
         "stride": args.stride,
         "columns": args.columns,
