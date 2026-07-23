@@ -13,6 +13,7 @@ from transformers import GPT2ForSequenceClassification
 from transformers.models.gpt2.modeling_gpt2 import GPT2Model
 from transformers.models.gpt2.configuration_gpt2 import GPT2Config
 from transformers import BertTokenizer, BertModel
+from transformers import BertConfig
 from einops import rearrange
 from .embed import DataEmbedding, DataEmbedding_wo_time
 
@@ -37,22 +38,24 @@ class gpt4ts(nn.Module):
         self.patch_num += 1
         self.enc_embedding = DataEmbedding(self.feat_dim * self.patch_size, config['d_model'], dropout=config['dropout'])
 
-        self.gpt2 = GPT2Model.from_pretrained('gpt2', output_attentions=True, output_hidden_states=True)
-        self.gpt2.h = self.gpt2.h[:self.gpt_layers]
+
+        # Added different llm support
+        self._load_backbone(config["model"])
         
-        for i, (name, param) in enumerate(self.gpt2.named_parameters()):
+        for i, (name, param) in enumerate(self.backbone.named_parameters()):
             if 'ln' in name or 'wpe' in name:
                 param.requires_grad = True
             else:
                 param.requires_grad = False
 
-        # TODO This has been edited change when cuda is avaliable
-        if torch.backends.mps.is_available():
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
             device = "mps"
         else:
             device = "cpu"
 
-        self.gpt2.to(device=device)
+        self.backbone.to(device=device)
 
         self.act = F.gelu
         self.dropout = nn.Dropout(0.1)
@@ -73,7 +76,7 @@ class gpt4ts(nn.Module):
         
         outputs = self.enc_embedding(input_x, None)
         
-        outputs = self.gpt2(inputs_embeds=outputs).last_hidden_state
+        outputs = self.backbone(inputs_embeds=outputs).last_hidden_state
 
         outputs = self.act(outputs).reshape(B, -1)
         outputs = self.ln_proj(outputs)
@@ -82,4 +85,26 @@ class gpt4ts(nn.Module):
         
         return outputs
 
-    
+    def _load_backbone(self, backbone: str) -> None:
+        match backbone:
+            case "gpt2":
+                self.backbone = GPT2Model.from_pretrained('gpt2', output_attentions=True, output_hidden_states=True)
+                self.backbone.h = self.backbone.h[:self.gpt_layers]
+            case "bert":
+                self.backbone = BertModel.from_pretrained("bert-base-uncased", output_attentions=True, output_hidden_states=True)
+                self.backbone.encoder.layer = self.backbone.encoder.layer[:self.gpt_layers]
+
+    def _freeze_backbone(self, backbone: str) -> None:
+        match backbone:
+            case "gpt2":
+                for i, (name, param) in enumerate(self.backbone.named_parameters()):
+                    if 'ln' in name or 'wpe' in name:
+                        param.requires_grad = True
+                    else:
+                        param.requires_grad = False
+            case "bert":
+                for i, (name, param) in enumerate(self.backbone.named_parameters()):
+                    if "LayerNorm" in name or "position_embeddings" in name:
+                        param.requires_grad = True
+                    else:
+                        param.requires_grad = False

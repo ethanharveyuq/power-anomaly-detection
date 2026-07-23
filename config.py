@@ -22,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--normalise", type=str, default="window")
 
     # Training
+    parser.add_argument("--model", type=str, default="gpt2")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--epochs-per-run", type=int, default=20)
     parser.add_argument("--head-learning-rate", type=float, default=1e-3)
@@ -94,7 +95,8 @@ def create_config(args: argparse.Namespace) -> dict:
         "l2 lambda": args.l2_lambda,
         "head weight decay": args.head_weight_decay,
         "scheduler": args.scheduler,
-        "normalise": args.normalise
+        "normalise": args.normalise,
+        "model": args.model
     }
 
     return config

@@ -122,30 +122,29 @@ def run(config):
         )
 
     # Create GPT4TS model
-    print("Initialising LLM Model...")
+    print(f"Initialising {config["model"]} Model...")
     model = gpt4ts(config, train_data)
     model.to(device)
     print(f"Patch num: {model.patch_num}")
     print(model.feat_dim * model.patch_size)
 
     # Initialise optimiser
-    UNFROZEN_BLOCKS = [5]
-    backbone_frozen_params = []  # ln, wpe - already-tuned lr=1e-5
-    backbone_unfrozen_params = []  # newly unfrozen block - needs its own lr
+    backbone_params = []
     head_params = []
 
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if name.startswith('gpt2.'):
-            backbone_frozen_params.append(param)
+        if name.startswith("backbone."):
+            backbone_params.append(param)
         else:
             head_params.append(param)
 
     optimizer = torch.optim.AdamW([
-        {'params': backbone_frozen_params, 'lr': config["backbone learning rate"], 'weight_decay': 0.0},
-        {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': config["head weight decay"]},
+        {"params": backbone_params, "lr": config["backbone learning rate"], "weight_decay": 0.0,},
+        {"params": head_params, "lr": config["head learning rate"], "weight_decay": config["head weight decay"],},
     ])
+    
     for i, g in enumerate(optimizer.param_groups):
         print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
 
