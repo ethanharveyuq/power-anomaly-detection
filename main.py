@@ -177,6 +177,7 @@ def run(config):
                 correct += (preds == labels).sum().item()
                 total += labels.size(0)
 
+
             if step % 10 == 0 or config["epochs per run"] <= 100:
                 model.eval()
                 val_correct, val_total, val_loss = 0, 0, 0.0
@@ -191,10 +192,10 @@ def run(config):
                         val_total += labels.size(0)
                 model.train()
 
-            print(f"step {step}: train_loss={total_loss/len(overfit_loader):.4f} "
-                f"train_acc={correct/total:.4f} "
-                f"val_loss={val_loss/len(overfit_val_loader):.4f} "
-                f"val_acc={val_correct/val_total:.4f}")
+                print(f"step {step}: train_loss={total_loss/len(overfit_loader):.4f} "
+                    f"train_acc={correct/total:.4f} "
+                    f"val_loss={val_loss/len(overfit_val_loader):.4f} "
+                    f"val_acc={val_correct/val_total:.4f}")
         return
 
     elif not config["test only"]:

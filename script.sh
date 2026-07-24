@@ -2,7 +2,7 @@
 
 python3 main.py \
     --data-dir ./data \
-    --columns FREQ UA:MAG UA:ANG \
+    --columns FREQ \
     --window-length 500 \
     --stride 300 \
     --batch-size 32 \
@@ -12,9 +12,10 @@ python3 main.py \
     --seed 42 \
     --gpu 0 \
     --patch-size 10 \
-    --d-model 768 \
+    --d-model 2048 \
     --dropout 0.1 \
     --patch-stride 10 \
     --patience 30 \
     --experiment \
-    --model bert
+    --model gemma \
+    --normalise window
