@@ -2,19 +2,34 @@
 From George Zerveas et al. A Transformer-based Framework for Multivariate Time Series Representation Learning, in
 Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21), August 14--18, 2021
 """
+# --- Standard library ---
 from typing import Optional
+
+# --- Third‑party ---
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
+from einops import rearrange
 
-from transformers import GPT2ForSequenceClassification
+# --- Transformers ---
+from transformers import (
+    GPT2ForSequenceClassification,
+    BertTokenizer,
+    BertModel,
+    BertConfig,
+    LlamaModel,
+    LlamaConfig,
+    PhiModel,
+    GemmaModel,
+)
 from transformers.models.gpt2.modeling_gpt2 import GPT2Model
 from transformers.models.gpt2.configuration_gpt2 import GPT2Config
-from transformers import BertTokenizer, BertModel
-from einops import rearrange
+
+# --- Local modules ---
 from .embed import DataEmbedding, DataEmbedding_wo_time
+
 
 
 class gpt4ts(nn.Module):
@@ -37,22 +52,19 @@ class gpt4ts(nn.Module):
         self.patch_num += 1
         self.enc_embedding = DataEmbedding(self.feat_dim * self.patch_size, config['d_model'], dropout=config['dropout'])
 
-        self.gpt2 = GPT2Model.from_pretrained('gpt2', output_attentions=True, output_hidden_states=True)
-        self.gpt2.h = self.gpt2.h[:self.gpt_layers]
-        
-        for i, (name, param) in enumerate(self.gpt2.named_parameters()):
-            if 'ln' in name or 'wpe' in name:
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
 
-        # TODO This has been edited change when cuda is avaliable
-        if torch.backends.mps.is_available():
+        # Added different llm support
+        self._load_backbone(config["model"])
+        self._freeze_backbone(config["model"])
+
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
             device = "mps"
         else:
             device = "cpu"
 
-        self.gpt2.to(device=device)
+        self.backbone.to(device=device)
 
         self.act = F.gelu
         self.dropout = nn.Dropout(0.1)
@@ -72,8 +84,7 @@ class gpt4ts(nn.Module):
         input_x = rearrange(input_x, 'b m n p -> b n (p m)')
         
         outputs = self.enc_embedding(input_x, None)
-        
-        outputs = self.gpt2(inputs_embeds=outputs).last_hidden_state
+        outputs = self.backbone(inputs_embeds=outputs).last_hidden_state
 
         outputs = self.act(outputs).reshape(B, -1)
         outputs = self.ln_proj(outputs)
@@ -82,4 +93,68 @@ class gpt4ts(nn.Module):
         
         return outputs
 
-    
+    def _load_backbone(self, backbone: str) -> None:
+        """
+        Added by Ethan Harvey, this initialises model backbone based on config["model"]
+        Allows support for gpt-2, BERT, Mini Llama, Phi-2, Gemma-2b
+        """
+        match backbone:
+            case "gpt2":
+                self.backbone = GPT2Model.from_pretrained('gpt2', output_attentions=True, output_hidden_states=True)
+                self.backbone.h = self.backbone.h[:self.gpt_layers]
+            case "bert":
+                self.backbone = BertModel.from_pretrained("bert-base-uncased", output_attentions=True, output_hidden_states=True)
+                self.backbone.encoder.layer = self.backbone.encoder.layer[:self.gpt_layers]
+            case "llama":
+                self.backbone = LlamaModel.from_pretrained("TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T",
+                output_hidden_states=True,
+                output_attentions=True)
+                self.backbone.layers = self.backbone.layers[:self.gpt_layers]
+            case "phi":
+                self.backbone = PhiModel.from_pretrained(
+                    "microsoft/phi-2",
+                    output_hidden_states=True,
+                    output_attentions=True,
+                )
+                self.backbone.layers = self.backbone.layers[:self.gpt_layers]
+                self.backbone = self.backbone.to(torch.float32)
+            case "gemma":
+                self.backbone = GemmaModel.from_pretrained("google/gemma-2b", output_hidden_states=True, output_attentions=True)
+                self.backbone.layers = self.backbone.layers[:self.gpt_layers]
+
+    def _freeze_backbone(self, backbone: str) -> None:
+        """
+        Freezes the relevant backbone params based on the config["model"]
+        """
+        match backbone:
+            case "gpt2":
+                for i, (name, param) in enumerate(self.backbone.named_parameters()):
+                    if 'ln' in name or 'wpe' in name:
+                        param.requires_grad = True
+                    else:
+                        param.requires_grad = False
+            case "bert":
+                for i, (name, param) in enumerate(self.backbone.named_parameters()):
+                    if "LayerNorm" in name or "position_embeddings" in name:
+                        param.requires_grad = True
+                    else:
+                        param.requires_grad = False
+            case "llama":
+                for i, (name, param) in enumerate(self.backbone.named_parameters()):
+                    if "norm" in name:
+                        param.requires_grad = True
+                    else:
+                        param.requires_grad = False
+            case "phi":
+                for i, (name, param) in enumerate(self.backbone.named_parameters()):
+                    if "layernorm" in name.lower():
+                        param.requires_grad = True
+                    else:
+                        param.requires_grad = False
+            case "gemma":
+                for i, (name, param) in enumerate(self.backbone.named_parameters()):
+                    if "norm" in name:
+                        param.requires_grad = True
+                    else:
+                        param.requires_grad = False
+

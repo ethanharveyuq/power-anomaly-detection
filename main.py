@@ -1,21 +1,25 @@
-from src.datasets.PMUData import PMUData
-from src.datasets.dataset import PMUDataset
-from src.models.gpt4ts import gpt4ts
-from config import parse_args, create_config
-from collections import Counter, deque
-from src.visualise import plot_confusion_matrix
-import sklearn.metrics as skm
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, Subset
-import numpy as np
-import pandas as pd
-import random
+# --- Standard library ---
 import os
 import time
+import random
 import tracemalloc
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from collections import Counter, deque
+
+# --- Third‑party ---
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import sklearn.metrics as skm
+from torch.utils.data import DataLoader, Subset
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
+
+# --- Local modules ---
+from config import parse_args, create_config
+from src.datasets import PMUData, PMUDataset
+from src.models import gpt4ts
+from src.visualise import plot_confusion_matrix
+
 
 # from GPT4TS
 def l2_reg_loss(model):
@@ -25,8 +29,6 @@ def l2_reg_loss(model):
 
     
 def run(config):
-    """
-    """
     # Create seeds
     torch.manual_seed(config['seed'])
     np.random.seed(config['seed'])
@@ -122,30 +124,29 @@ def run(config):
         )
 
     # Create GPT4TS model
-    print("Initialising LLM Model...")
+    print(f"Initialising {config["model"]} Model...")
     model = gpt4ts(config, train_data)
     model.to(device)
     print(f"Patch num: {model.patch_num}")
     print(model.feat_dim * model.patch_size)
 
     # Initialise optimiser
-    UNFROZEN_BLOCKS = [5]
-    backbone_frozen_params = []  # ln, wpe - already-tuned lr=1e-5
-    backbone_unfrozen_params = []  # newly unfrozen block - needs its own lr
+    backbone_params = []
     head_params = []
 
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if name.startswith('gpt2.'):
-            backbone_frozen_params.append(param)
+        if name.startswith("backbone."):
+            backbone_params.append(param)
         else:
             head_params.append(param)
 
     optimizer = torch.optim.AdamW([
-        {'params': backbone_frozen_params, 'lr': config["backbone learning rate"], 'weight_decay': 0.0},
-        {'params': head_params, 'lr': config["head learning rate"], 'weight_decay': config["head weight decay"]},
+        {"params": backbone_params, "lr": config["backbone learning rate"], "weight_decay": 0.0,},
+        {"params": head_params, "lr": config["head learning rate"], "weight_decay": config["head weight decay"],},
     ])
+    
     for i, g in enumerate(optimizer.param_groups):
         print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
 
@@ -178,6 +179,7 @@ def run(config):
                 correct += (preds == labels).sum().item()
                 total += labels.size(0)
 
+
             if step % 10 == 0 or config["epochs per run"] <= 100:
                 model.eval()
                 val_correct, val_total, val_loss = 0, 0, 0.0
@@ -192,10 +194,10 @@ def run(config):
                         val_total += labels.size(0)
                 model.train()
 
-            print(f"step {step}: train_loss={total_loss/len(overfit_loader):.4f} "
-                f"train_acc={correct/total:.4f} "
-                f"val_loss={val_loss/len(overfit_val_loader):.4f} "
-                f"val_acc={val_correct/val_total:.4f}")
+                print(f"step {step}: train_loss={total_loss/len(overfit_loader):.4f} "
+                    f"train_acc={correct/total:.4f} "
+                    f"val_loss={val_loss/len(overfit_val_loader):.4f} "
+                    f"val_acc={val_correct/val_total:.4f}")
         return
 
     elif not config["test only"]:
@@ -394,7 +396,7 @@ def run(config):
     
     
     # Compute final metrics
-
+    # TODO add individual time and memory usage
     accuracy = skm.accuracy_score(all_labels, all_predictions)
     precision = skm.precision_score(all_labels, all_predictions, average="macro")
     recall = skm.recall_score(all_labels, all_predictions, average="macro")
