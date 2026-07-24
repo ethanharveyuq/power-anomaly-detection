@@ -1,21 +1,20 @@
 """
 Path between dataset and pytorch 
 """
-
+# --- Third‑party ---
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
+
+# --- Local modules ---
 from .PMUData import PMUData
 
 class PMUDataset(Dataset):
     def __init__(self, data: PMUData) -> None:
-        """
-        """
         self.data = data
         self.feature_df = data.feature_df
         self.labels_df = data.labels_df
-
 
     def __len__(self) -> int:
         """

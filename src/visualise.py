@@ -1,33 +1,50 @@
 """
 Load a training checkpoint and visualise training/validation progress.
 """
+# --- Standard library ---
+import argparse
 
+# --- Third‑party ---
 import torch
 import pandas as pd
 import matplotlib.pyplot as plt
-import argparse
 import sklearn.metrics as skm
 import numpy as np
 
+
 def load_checkpoint(path: str, device: str = "cpu"):
+    """
+    Loads the last training checkpoint which holds all the data and config etc
+    Returns:
+        checkpoint.pt after loading
+    """
     checkpoint = torch.load(path, map_location=device, weights_only=False)
     return checkpoint
 
-
-def print_run_config(config: dict):
+def print_run_config(config: dict) -> None:
+    """
+    Prints the run configuration so results can be replicated
+    """
     print("Run configuration:")
     for k, v in config.items():
         print(f"  {k}: {v}")
 
-
 def build_dataframe(training_data: dict) -> pd.DataFrame:
+    """
+    From the data dictionary, creates the dataframe
+    Returns:
+        Pandas dataframe of the results with epoch as index
+    """
     df = pd.DataFrame(training_data)
     df.index.name = "epoch"
     df.index += 1  # 1-indexed to match printed logs
     return df
 
-
-def plot_training(df: pd.DataFrame, config: dict, save_path: str = None):
+def plot_training(df: pd.DataFrame, config: dict, save_path: str=None) -> None:
+    """
+    Plots the training data from the df into 4 plots, with training and validation data
+    sharing plots for comparison.
+    """
     fig, axes = plt.subplots(2, 2, figsize=(12, 8))
 
     # Accuracy
@@ -69,8 +86,11 @@ def plot_training(df: pd.DataFrame, config: dict, save_path: str = None):
     else:
         plt.show()
 
-
-def plot_confusion_matrix(all_labels, all_predictions, class_names=None, save_path=None):
+def plot_confusion_matrix(all_labels, all_predictions, class_names=None, save_path=None) -> None:
+    """
+    From the predictions and label data, creates a 49x49 confusion matrix and saves it in
+    the save_path
+    """
     cm = skm.confusion_matrix(all_labels, all_predictions)
 
     fig, ax = plt.subplots(figsize=(16, 14))

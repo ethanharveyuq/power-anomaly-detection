@@ -2,24 +2,34 @@
 From George Zerveas et al. A Transformer-based Framework for Multivariate Time Series Representation Learning, in
 Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21), August 14--18, 2021
 """
+# --- Standard library ---
 from typing import Optional
+
+# --- Third‑party ---
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
+from einops import rearrange
 
-from transformers import GPT2ForSequenceClassification
+# --- Transformers ---
+from transformers import (
+    GPT2ForSequenceClassification,
+    BertTokenizer,
+    BertModel,
+    BertConfig,
+    LlamaModel,
+    LlamaConfig,
+    PhiModel,
+    GemmaModel,
+)
 from transformers.models.gpt2.modeling_gpt2 import GPT2Model
 from transformers.models.gpt2.configuration_gpt2 import GPT2Config
-from transformers import BertTokenizer, BertModel
-from transformers import BertConfig
-from transformers import LlamaModel
-from transformers import LlamaConfig
-from transformers import PhiModel
-from transformers import GemmaModel
-from einops import rearrange
+
+# --- Local modules ---
 from .embed import DataEmbedding, DataEmbedding_wo_time
+
 
 
 class gpt4ts(nn.Module):
@@ -84,6 +94,10 @@ class gpt4ts(nn.Module):
         return outputs
 
     def _load_backbone(self, backbone: str) -> None:
+        """
+        Added by Ethan Harvey, this initialises model backbone based on config["model"]
+        Allows support for gpt-2, BERT, Mini Llama, Phi-2, Gemma-2b
+        """
         match backbone:
             case "gpt2":
                 self.backbone = GPT2Model.from_pretrained('gpt2', output_attentions=True, output_hidden_states=True)
@@ -109,6 +123,9 @@ class gpt4ts(nn.Module):
                 self.backbone.layers = self.backbone.layers[:self.gpt_layers]
 
     def _freeze_backbone(self, backbone: str) -> None:
+        """
+        Freezes the relevant backbone params based on the config["model"]
+        """
         match backbone:
             case "gpt2":
                 for i, (name, param) in enumerate(self.backbone.named_parameters()):

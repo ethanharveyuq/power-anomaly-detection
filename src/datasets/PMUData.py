@@ -1,11 +1,13 @@
 """
-Read CSVs, clean them, create windows, store metadata
+Read CSVs, clean them, normalise data, create windows, store metadata
 """
-
-from multiprocessing import Pool, cpu_count
-import pandas as pd
+# --- Standard library ---
+from multiprocessing import cpu_count
 from pathlib import Path
 import re
+
+# --- Third‑party ---
+import pandas as pd
 import numpy as np
 
 TIMESTAMP_COL = 'Timestamp'
@@ -96,7 +98,6 @@ def process_data(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> tuple[pd.Da
 
     return df, interpolated_mask
 
-
 def find_flag_gps(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> pd.DataFrame:
     """
     Identifies contiguous runs of bad gps data.
@@ -136,14 +137,12 @@ def find_flag_gps(df: pd.DataFrame, max_gap: int = MAX_INTERP_GAP) -> pd.DataFra
 
     return df
 
-
 def _flag_data(df: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> None:
     """
     Sets all data from [start, end] to NaN inplace, inclusive of both start and end
     """
     mask = (df.index >= start) & (df.index <= end)
     df.loc[mask, DATA_COLS] = np.nan
-
 
 def interpolate_gap(df: pd.DataFrame, start : pd.Timestamp, end : pd.Timestamp, max_gap: int) -> pd.DataFrame:
     """
@@ -170,7 +169,6 @@ class BaseData(object):
             self.n_proc = min(n_proc, cpu_count())
 
 
-
 class PMUData(BaseData):
 
     def __init__(self, root_dir: str, file_pattern: re.Pattern, config: dict):
@@ -186,7 +184,6 @@ class PMUData(BaseData):
         self.process_all_files(root_dir)
         self.num_classes = len(self.class_names)
         return
-
 
     def process_all_files(self, root_dir: str) -> None:
         """
@@ -302,10 +299,13 @@ class PMUData(BaseData):
             win_idx += 1
         
         return windows, win_idx
-
     
     def normalise_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
+        Globally normalises FREQ, and voltage and current phasors using observed means and sd
+        This is only called if cofig["normalise"] is set to global
+        Returns:
+            Normalised dataframe
         """
         for col in self.feature_names:
             if col in ["FREQ"]:
@@ -319,13 +319,15 @@ class PMUData(BaseData):
                     df[col] = (df[col] - 95.21) / 0.5
         return df
 
-
     def normalise_window(self, feature_df: pd.DataFrame) -> pd.DataFrame:
-
+        """
+        This normalises a window df from the mean and variance observed in that window
+        This is only called when config["normalise"] is set to window
+        Returns:
+            Normalised window df
+        """
         for column in feature_df:
             # Standardize a single column 
             feature_df[column] = (feature_df[column] - feature_df[column].mean()) / feature_df[column].std()
 
         return feature_df
-
-    

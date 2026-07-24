@@ -1,21 +1,25 @@
-from src.datasets.PMUData import PMUData
-from src.datasets.dataset import PMUDataset
-from src.models.gpt4ts import gpt4ts
-from config import parse_args, create_config
-from collections import Counter, deque
-from src.visualise import plot_confusion_matrix
-import sklearn.metrics as skm
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, Subset
-import numpy as np
-import pandas as pd
-import random
+# --- Standard library ---
 import os
 import time
+import random
 import tracemalloc
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from collections import Counter, deque
+
+# --- Third‑party ---
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import sklearn.metrics as skm
+from torch.utils.data import DataLoader, Subset
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
+
+# --- Local modules ---
+from config import parse_args, create_config
+from src.datasets import PMUData, PMUDataset
+from src.models import gpt4ts
+from src.visualise import plot_confusion_matrix
+
 
 # from GPT4TS
 def l2_reg_loss(model):
@@ -25,8 +29,6 @@ def l2_reg_loss(model):
 
     
 def run(config):
-    """
-    """
     # Create seeds
     torch.manual_seed(config['seed'])
     np.random.seed(config['seed'])
@@ -394,7 +396,7 @@ def run(config):
     
     
     # Compute final metrics
-
+    # TODO add individual time and memory usage
     accuracy = skm.accuracy_score(all_labels, all_predictions)
     precision = skm.precision_score(all_labels, all_predictions, average="macro")
     recall = skm.recall_score(all_labels, all_predictions, average="macro")

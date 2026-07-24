@@ -1,6 +1,8 @@
+"""
+Responsible for parsing and creating the config args
+"""
 import argparse
 import re
-
 
 def parse_args() -> argparse.Namespace:
     """
@@ -50,10 +52,11 @@ def parse_args() -> argparse.Namespace:
 
     return parser.parse_args()
 
-
 def create_config(args: argparse.Namespace) -> dict:
     """
-    Creates dict from parser args
+    Creates config dict from parser args
+    Returns:
+        config dict
     """
 
     if args.experiment:
@@ -98,5 +101,4 @@ def create_config(args: argparse.Namespace) -> dict:
         "normalise": args.normalise,
         "model": args.model
     }
-
     return config
