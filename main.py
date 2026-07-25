@@ -2,6 +2,7 @@
 import os
 import time
 import random
+import statistics
 import tracemalloc
 from collections import Counter, deque
 
@@ -124,7 +125,7 @@ def run(config):
         )
 
     # Create GPT4TS model
-    print(f"Initialising {config["model"]} Model...")
+    print(f"Initialising {config['model']} Model...")
     model = gpt4ts(config, train_data)
     model.to(device)
     print(f"Patch num: {model.patch_num}")
@@ -155,6 +156,8 @@ def run(config):
         scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
     elif config["scheduler"] == "CosineAnnealingLR":
         scheduler = CosineAnnealingLR(optimizer, T_max=config["epochs per run"], eta_min=config["backbone learning rate"] * 0.01)
+    else:
+        scheduler = None
     print(f"Using scheduler: {config['scheduler']}")
     # Loss model
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # for classification, 0.1 prevents over confidence
@@ -373,30 +376,56 @@ def run(config):
 
 
     # AFTER TRAINING, TESTING - Reload best model
-    model.load_state_dict(torch.load("best_model.pt"))
+    model.load_state_dict(torch.load("models/FREQ/best_model_fixed.pt", map_location=device))
     model.eval()
-    
-    # Final testing
+
     all_predictions = []
     all_labels = []
+    classification_times = []
+    peak_memories = []
+    current_memories = []
+
+    # Warm-up: run a few throwaway inferences to avoid measuring one-time setup cost
+    with torch.no_grad():
+        warm_up_batch, _ = next(iter(test_loader))
+        warm_up_window = warm_up_batch[0:1].to(device)
+        for _ in range(5):
+            _ = model(warm_up_window)
+            if device.type == "cuda":
+                torch.cuda.synchronize()
 
     with torch.no_grad():
-
         for windows, labels in test_loader:
-
-            windows = windows.to(device)
             labels = labels.to(device)
+            batch_predictions = []
 
-            outputs = model(windows)
+            for i in range(windows.size(0)):
+                window = windows[i:i+1].to(device)
 
-            predictions = torch.argmax(outputs, dim=1)
+                if device.type == "cuda":
+                    torch.cuda.reset_peak_memory_stats()
+                    torch.cuda.synchronize()
 
-            all_predictions.extend(predictions.cpu().numpy())
+                start = time.perf_counter()
+                outputs = model(window)
+                if device.type == "cuda":
+                    torch.cuda.synchronize()
+                end = time.perf_counter()
+
+                classification_times.append(end - start)
+
+                if device.type == "cuda":
+                    peak_memories.append(torch.cuda.max_memory_allocated() / 1024**2)
+                    current_memories.append(torch.cuda.memory_allocated() / 1024**2)
+
+                prediction = torch.argmax(outputs, dim=1)
+                batch_predictions.append(prediction.item())
+
+            all_predictions.extend(batch_predictions)
             all_labels.extend(labels.cpu().numpy())
     
-    
     # Compute final metrics
-    # TODO add individual time and memory usage
+
     accuracy = skm.accuracy_score(all_labels, all_predictions)
     precision = skm.precision_score(all_labels, all_predictions, average="macro")
     recall = skm.recall_score(all_labels, all_predictions, average="macro")
@@ -408,6 +437,9 @@ def run(config):
     print(f"Precision: {precision:.4f}")
     print(f"Recall   : {recall:.4f}")
     print(f"F1 Score : {f1:.4f}")
+    print(f"Mean single-window inference time: {statistics.mean(classification_times)*1000:.3f} ms")
+    if device.type == "cuda":
+        print(f"Mean peak memory per window: {statistics.mean(peak_memories):.2f} MB")
 
     plot_confusion_matrix(all_labels, all_predictions, save_path="confusion_matrix.png")
         
