@@ -323,11 +323,15 @@ class PMUData(BaseData):
         """
         This normalises a window df from the mean and variance observed in that window
         This is only called when config["normalise"] is set to window
+
         Returns:
             Normalised window df
         """
         for column in feature_df:
             # Standardize a single column 
-            feature_df[column] = (feature_df[column] - feature_df[column].mean()) / feature_df[column].std()
+            if column.endswith(":ANG"):
+                feature_df[column] = np.sin(np.deg2rad(feature_df[column]))
+            else:
+                feature_df[column] = (feature_df[column] - feature_df[column].mean()) / feature_df[column].std()
 
         return feature_df

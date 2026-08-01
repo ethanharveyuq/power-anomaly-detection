@@ -376,7 +376,7 @@ def run(config):
 
 
     # AFTER TRAINING, TESTING - Reload best model
-    model.load_state_dict(torch.load("models/FREQ/best_model_fixed.pt", map_location=device))
+    model.load_state_dict(torch.load("best_model.pt", map_location=device))
     model.eval()
 
     all_predictions = []
