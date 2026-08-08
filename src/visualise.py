@@ -40,51 +40,6 @@ def build_dataframe(training_data: dict) -> pd.DataFrame:
     df.index += 1  # 1-indexed to match printed logs
     return df
 
-def plot_training(df: pd.DataFrame, config: dict, save_path: str=None) -> None:
-    """
-    Plots the training data from the df into 4 plots, with training and validation data
-    sharing plots for comparison.
-    """
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-
-    # Accuracy
-    axes[0, 0].plot(df.index, df["training accuracy"], label="Train")
-    axes[0, 0].plot(df.index, df["validation accuracy"], label="Validation")
-    axes[0, 0].set_title("Accuracy")
-    axes[0, 0].set_xlabel("Epoch")
-    axes[0, 0].legend()
-
-    # Loss
-    axes[0, 1].plot(df.index, df["training loss"], label="Train")
-    axes[0, 1].plot(df.index, df["validation loss"], label="Validation")
-    axes[0, 1].set_title("Loss")
-    axes[0, 1].set_xlabel("Epoch")
-    axes[0, 1].legend()
-
-    # F1
-    axes[1, 0].plot(df.index, df["validation f1"], color="green")
-    axes[1, 0].set_title("Validation F1")
-    axes[1, 0].set_xlabel("Epoch")
-
-    # Time per epoch
-    axes[1, 1].plot(df.index, df["time elapsed"], color="orange")
-    axes[1, 1].set_title("Validation Time (s)")
-    axes[1, 1].set_xlabel("Epoch")
-
-    # Title with a few key run params, so the plot is self-describing
-    fig.suptitle(
-        f"columns={config.get('columns')} | "
-        f"window={config.get('window length')} stride={config.get('stride')} | "
-        f"head_lr={config.get('head learning rate')} backbone_lr={config.get('backbone learning rate')}"
-    )
-
-    fig.tight_layout()
-
-    if save_path:
-        fig.savefig(save_path, dpi=150)
-        print(f"Saved plot to {save_path}")
-    else:
-        plt.show()
 
 def plot_training(df: pd.DataFrame, config: dict, save_path: str = None) -> None:
     """
