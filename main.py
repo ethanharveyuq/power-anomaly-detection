@@ -43,8 +43,8 @@ def run(config):
     print(f"Device: {device}")
 
     # Load Data
-    print("Loading training data...")
     if config["experiment"]: 
+        print("Loading training data...")
         train_data = PMUData(config['train data'], config['train pattern'], config)
         train_dataset = PMUDataset(train_data)
         labels = train_dataset.labels_df['Label'].values
@@ -73,48 +73,52 @@ def run(config):
         overfit_val_dataset = Subset(validation_dataset, val_selected_indices)
         overfit_val_loader = DataLoader(overfit_val_dataset, batch_size=32, shuffle=False)
     else:
-        train_data = PMUData(config['train data'], config['train pattern'], config)
-        print("Loading validation data...")
-        validation_data = PMUData(config['validation data'], config['validation pattern'], config)
+        if not config["test only"]:
+            print("Loading training data...")
+            train_data = PMUData(config['train data'], config['train pattern'], config)
+            print("Loading validation data...")
+            validation_data = PMUData(config['validation data'], config['validation pattern'], config)
+            train_dataset = PMUDataset(train_data)
+            print(f"Train dataset length: {len(train_dataset.labels_df)}")
+            validation_dataset = PMUDataset(validation_data)
+
+            #Create Dataloaders (create mini batches)
+            train_loader = DataLoader(
+            dataset=train_dataset, 
+            batch_size=config['batch size'],      # Group data into chunks of 32
+            shuffle=True,       # Mix up data order every epoch
+            num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
+            pin_memory=True     # Speed up data copy to GPU memory
+            )
+
+            # Make validation set smaller samples to increase epoch speed
+            val_samples_per_class = 100 # can tune
+            val_labels = validation_dataset.labels_df['Label'].values
+            rng = np.random.default_rng(config['seed'])
+
+            selected_indices = []
+            for cls in np.unique(val_labels):
+                cls_indices = np.where(val_labels == cls)[0]
+                if len(cls_indices) > val_samples_per_class:
+                    cls_indices = rng.choice(cls_indices, size=val_samples_per_class, replace=False)
+                selected_indices.extend(cls_indices.tolist())
+
+            validation_dataset = Subset(validation_dataset, selected_indices)
+
+            validation_loader = DataLoader(
+            dataset=validation_dataset, 
+            batch_size=config['batch size'],      
+            shuffle=True,       
+            num_workers=2,      
+            pin_memory=True     
+            )
+
         print("Loading testing data")
         test_data = PMUData(config['test data'], config['test pattern'], config)
 
         # create PMUDataset object wrappers
-        train_dataset = PMUDataset(train_data)
-        print(f"Train dataset length: {len(train_dataset.labels_df)}")
-        validation_dataset = PMUDataset(validation_data)
+        
         test_dataset = PMUDataset(test_data)
-    
-        #Create Dataloaders (create mini batches)
-        train_loader = DataLoader(
-        dataset=train_dataset, 
-        batch_size=config['batch size'],      # Group data into chunks of 32
-        shuffle=True,       # Mix up data order every epoch
-        num_workers=2,      # Use 2 CPU subprocesses to load data parallelly
-        pin_memory=True     # Speed up data copy to GPU memory
-        )
-
-        # Make validation set smaller samples to increase epoch speed
-        val_samples_per_class = 100 # can tune
-        val_labels = validation_dataset.labels_df['Label'].values
-        rng = np.random.default_rng(config['seed'])
-
-        selected_indices = []
-        for cls in np.unique(val_labels):
-            cls_indices = np.where(val_labels == cls)[0]
-            if len(cls_indices) > val_samples_per_class:
-                cls_indices = rng.choice(cls_indices, size=val_samples_per_class, replace=False)
-            selected_indices.extend(cls_indices.tolist())
-
-        validation_dataset = Subset(validation_dataset, selected_indices)
-
-        validation_loader = DataLoader(
-        dataset=validation_dataset, 
-        batch_size=config['batch size'],      
-        shuffle=True,       
-        num_workers=2,      
-        pin_memory=True     
-        )
 
         test_loader = DataLoader(
         dataset=test_dataset, 
@@ -124,43 +128,44 @@ def run(config):
         pin_memory=True
         )
 
-    # Create GPT4TS model
-    print(f"Initialising {config['model']} Model...")
-    model = gpt4ts(config, train_data)
-    model.to(device)
-    print(f"Patch num: {model.patch_num}")
-    print(model.feat_dim * model.patch_size)
+    if not config["test only"]:
+        # Create model
+        print(f"Initialising {config['model']} Model...")
+        model = gpt4ts(config, train_data)
+        model.to(device)
+        print(f"Patch num: {model.patch_num}")
+        print(model.feat_dim * model.patch_size)
 
-    # Initialise optimiser
-    backbone_params = []
-    head_params = []
+        # Initialise optimiser
+        backbone_params = []
+        head_params = []
 
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            continue
-        if name.startswith("backbone."):
-            backbone_params.append(param)
+        for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue
+            if name.startswith("backbone."):
+                backbone_params.append(param)
+            else:
+                head_params.append(param)
+
+        optimizer = torch.optim.AdamW([
+            {"params": backbone_params, "lr": config["backbone learning rate"], "weight_decay": 0.0,},
+            {"params": head_params, "lr": config["head learning rate"], "weight_decay": config["head weight decay"],},
+        ])
+        
+        for i, g in enumerate(optimizer.param_groups):
+            print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
+
+        #  Learning rate scheduler
+        if config["scheduler"] == "ReduceLROnPlateau":
+            scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
+        elif config["scheduler"] == "CosineAnnealingLR":
+            scheduler = CosineAnnealingLR(optimizer, T_max=config["epochs per run"], eta_min=config["backbone learning rate"] * 0.01)
         else:
-            head_params.append(param)
-
-    optimizer = torch.optim.AdamW([
-        {"params": backbone_params, "lr": config["backbone learning rate"], "weight_decay": 0.0,},
-        {"params": head_params, "lr": config["head learning rate"], "weight_decay": config["head weight decay"],},
-    ])
-    
-    for i, g in enumerate(optimizer.param_groups):
-        print(f"group {i}: lr={g['lr']}, num_params={sum(p.numel() for p in g['params'])}")
-
-    #  Learning rate scheduler
-    if config["scheduler"] == "ReduceLROnPlateau":
-        scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
-    elif config["scheduler"] == "CosineAnnealingLR":
-        scheduler = CosineAnnealingLR(optimizer, T_max=config["epochs per run"], eta_min=config["backbone learning rate"] * 0.01)
-    else:
-        scheduler = None
-    print(f"Using scheduler: {config['scheduler']}")
-    # Loss model
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # for classification, 0.1 prevents over confidence
+            scheduler = None
+        print(f"Using scheduler: {config['scheduler']}")
+        # Loss model
+        criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # for classification, 0.1 prevents over confidence
 
     l2_lambda = config["l2 lambda"]
     # experiment loop
@@ -376,7 +381,9 @@ def run(config):
 
 
     # AFTER TRAINING, TESTING - Reload best model
-    model.load_state_dict(torch.load("best_model.pt", map_location=device))
+    model = gpt4ts(config, test_data)
+    model.to(device)
+    model.load_state_dict(torch.load("models/bert/FREQUAUBUCIAIBICglobal/best_model.pt", map_location=device))
     model.eval()
 
     all_predictions = []
