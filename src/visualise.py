@@ -86,37 +86,53 @@ def plot_training(df: pd.DataFrame, config: dict, save_path: str=None) -> None:
     else:
         plt.show()
 
-def plot_confusion_matrix(all_labels, all_predictions, class_names=None, save_path=None) -> None:
+def plot_training(df: pd.DataFrame, config: dict, save_path: str = None) -> None:
     """
-    From the predictions and label data, creates a 49x49 confusion matrix and saves it in
-    the save_path
+    Creates a single IEEE‑style plot showing:
+    - Training & validation accuracy
+    - Training & validation loss
+    all vs. epoch index.
     """
-    cm = skm.confusion_matrix(all_labels, all_predictions)
 
-    fig, ax = plt.subplots(figsize=(16, 14))
-    im = ax.imshow(cm, cmap="Blues")
+    plt.figure(figsize=(10, 6))
 
-    ax.set_xlabel("Predicted label")
-    ax.set_ylabel("True label")
-    ax.set_title("Confusion Matrix")
+    epochs = df.index
 
-    if class_names is not None:
-        ax.set_xticks(np.arange(len(class_names)))
-        ax.set_yticks(np.arange(len(class_names)))
-        ax.set_xticklabels(class_names, rotation=90, fontsize=6)
-        ax.set_yticklabels(class_names, fontsize=6)
-    else:
-        ax.set_xticks(np.arange(cm.shape[1]))
-        ax.set_yticks(np.arange(cm.shape[0]))
+    # Plot accuracy
+    plt.plot(epochs, df["training accuracy"], label="Train Accuracy",
+             linewidth=1.8, color="#1f77b4")
+    plt.plot(epochs, df["validation accuracy"], label="Val Accuracy",
+             linewidth=1.8, color="#ff7f0e")
 
-    fig.colorbar(im, ax=ax, label="Count")
-    fig.tight_layout()
+    # Plot loss
+    plt.plot(epochs, df["training loss"], label="Train Loss",
+             linewidth=1.8, linestyle="--", color="#2ca02c")
+    plt.plot(epochs, df["validation loss"], label="Val Loss",
+             linewidth=1.8, linestyle="--", color="#d62728")
 
+    # Axis labels
+    plt.xlabel("Epoch", fontsize=12)
+    plt.ylabel("Metric Value", fontsize=12)
+
+    # Title (IEEE papers often avoid overly long titles)
+    plt.title("Training and Validation Metrics vs Epoch", fontsize=13)
+
+    # Legend (IEEE prefers outside or unobtrusive)
+    plt.legend(loc="upper right", fontsize=10)
+
+    # Grid (subtle)
+    plt.grid(alpha=0.3)
+
+    # Tight layout for LaTeX import
+    plt.tight_layout()
+
+    # Save as vector PDF for Overleaf
     if save_path:
-        fig.savefig(save_path, dpi=150)
-        print(f"Saved confusion matrix to {save_path}")
+        plt.savefig(save_path, format="pdf", dpi=600, bbox_inches="tight")
+        print(f"Saved plot to {save_path}")
     else:
         plt.show()
+
 
 
 if __name__ == "__main__":
